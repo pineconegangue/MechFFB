@@ -9,9 +9,9 @@ Force feedback system for MechWarrior 5 using SDL2 (same as DCS World).
 **In MechFFB**: Select your actual device, do not select vJoy or any other virtual controller  
 **In MW5**: You can still use vJoy/Joystick gremlin ETC for inputs
 
-### Direct Setup (No vJoy):
+### Setup:
 
-1. Build and run MechFFBUI
+1. Build and run MechFFB.exe
 2. Select your FFB Joystick
 3. Click "Test Device" to verify FFB output is actually working.
 4. Click "Start Engine"
