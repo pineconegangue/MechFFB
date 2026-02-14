@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>MechFFB</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MechFFBEngine\MechFFBEngine.csproj" />
+    <ProjectReference Include="..\MechFFBReader\MechFFBReader.csproj" />
+  </ItemGroup>
+
+  <!-- Copy SDL2.dll to output directory if it exists -->
+  <Target Name="CopySDL2" AfterTargets="Build">
+    <Copy SourceFiles="$(ProjectDir)..\SDL2.dll" 
+          DestinationFolder="$(OutDir)" 
+          SkipUnchangedFiles="true" 
+          Condition="Exists('$(ProjectDir)..\SDL2.dll')" />
+  </Target>
+
+</Project>

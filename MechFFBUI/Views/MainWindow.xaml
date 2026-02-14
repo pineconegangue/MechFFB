@@ -1,0 +1,997 @@
+<Window x:Class="MechFFBUI.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="MechFFB - Force Feedback for MechWarrior 5" 
+        Height="600" Width="800"
+        Background="{StaticResource BackgroundBrush}"
+        WindowStartupLocation="CenterScreen">
+    
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <!-- Header -->
+        <Border Grid.Row="0" Background="{StaticResource PrimaryBrush}" 
+                BorderBrush="{StaticResource AccentBrush}" BorderThickness="2" 
+                Padding="15" Margin="0,0,0,10">
+            <StackPanel>
+                <TextBlock Text="MechFFB" FontSize="28" FontWeight="Bold" 
+                          HorizontalAlignment="Center"/>
+                <TextBlock Text="Real-time Force Feedback for MechWarrior 5: Mercenaries" 
+                          FontSize="14" HorizontalAlignment="Center" Opacity="0.8"/>
+            </StackPanel>
+        </Border>
+        
+        <!-- Device Selection -->
+        <Border Grid.Row="1" Background="{StaticResource PrimaryBrush}" 
+                BorderBrush="{StaticResource SecondaryBrush}" BorderThickness="1" 
+                Padding="10" Margin="0,0,0,10">
+            <StackPanel>
+                <TextBlock Text="Force Feedback Device" FontWeight="Bold" FontSize="14"/>
+                <Grid Margin="0,5,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <ComboBox x:Name="DeviceComboBox" Grid.Column="0" 
+                             DisplayMemberPath="Name"
+                             SelectionChanged="DeviceComboBox_SelectionChanged"/>
+                    
+                    <Button Grid.Column="1" Content="Refresh Devices" 
+                           Click="RefreshDevices_Click" Width="120"/>
+                    
+                    <Button Grid.Column="2" Content="Test Device" 
+                           Click="TestDevice_Click" Width="100"
+                           IsEnabled="{Binding IsDeviceSelected}"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+        
+        <!-- Main Content Area with Tabs -->
+        <TabControl Grid.Row="2" Background="{StaticResource PrimaryBrush}"
+                   BorderBrush="{StaticResource SecondaryBrush}">
+            
+            <!-- Simple Mode Tab -->
+            <TabItem Header="Settings" FontSize="14">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="10">
+                        <TextBlock Text="Master Intensity" FontWeight="Bold" FontSize="14" Foreground="{StaticResource AccentBrush}"/>
+                        <Grid Margin="0,5,0,15">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="60"/>
+                            </Grid.ColumnDefinitions>
+                            <Slider x:Name="MasterIntensitySlider" Grid.Column="0" 
+                                   Minimum="0" Maximum="100" Value="100" 
+                                   TickFrequency="10" IsSnapToTickEnabled="True"
+                                   ValueChanged="IntensitySlider_ValueChanged"/>
+                            <TextBlock Grid.Column="1" Text="{Binding ElementName=MasterIntensitySlider, Path=Value, StringFormat={}{0:F0}%}" 
+                                      FontWeight="Bold" FontSize="14" 
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                        
+                        <!-- Weapon Effects Section -->
+                        <TextBlock Text="Weapon Recoil" FontWeight="Bold" FontSize="14" Margin="0,15,0,5" Foreground="{StaticResource AccentBrush}"/>
+                        
+                        <!-- Ballistics -->
+                        <TextBlock Text="Ballistics (Autocannons)" FontWeight="SemiBold" FontSize="12" Margin="0,5,0,0"/>
+                        <Grid Margin="0,3,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="60"/>
+                            </Grid.ColumnDefinitions>
+                            <Slider x:Name="BallisticSlider" Grid.Column="0" 
+                                   Minimum="0" Maximum="100" Value="60" 
+                                   TickFrequency="10" IsSnapToTickEnabled="True"
+                                   ValueChanged="IntensitySlider_ValueChanged"/>
+                            <TextBlock Grid.Column="1" Text="{Binding ElementName=BallisticSlider, Path=Value, StringFormat={}{0:F0}%}" 
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                        
+                        <!-- Lasers -->
+                        <TextBlock Text="Lasers" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,0"/>
+                        <Grid Margin="0,3,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="60"/>
+                            </Grid.ColumnDefinitions>
+                            <Slider x:Name="LaserSlider" Grid.Column="0" 
+                                   Minimum="0" Maximum="100" Value="60" 
+                                   TickFrequency="10" IsSnapToTickEnabled="True"
+                                   ValueChanged="IntensitySlider_ValueChanged"/>
+                            <TextBlock Grid.Column="1" Text="{Binding ElementName=LaserSlider, Path=Value, StringFormat={}{0:F0}%}" 
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                        
+                        <!-- PPCs -->
+                        <TextBlock Text="PPCs" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,0"/>
+                        <Grid Margin="0,3,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="60"/>
+                            </Grid.ColumnDefinitions>
+                            <Slider x:Name="PPCSlider" Grid.Column="0" 
+                                   Minimum="0" Maximum="100" Value="60" 
+                                   TickFrequency="10" IsSnapToTickEnabled="True"
+                                   ValueChanged="IntensitySlider_ValueChanged"/>
+                            <TextBlock Grid.Column="1" Text="{Binding ElementName=PPCSlider, Path=Value, StringFormat={}{0:F0}%}" 
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                        
+                        <!-- Missiles -->
+                        <TextBlock Text="Missiles" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,0"/>
+                        <Grid Margin="0,3,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="60"/>
+                            </Grid.ColumnDefinitions>
+                            <Slider x:Name="MissileSlider" Grid.Column="0" 
+                                   Minimum="0" Maximum="100" Value="60" 
+                                   TickFrequency="10" IsSnapToTickEnabled="True"
+                                   ValueChanged="IntensitySlider_ValueChanged"/>
+                            <TextBlock Grid.Column="1" Text="{Binding ElementName=MissileSlider, Path=Value, StringFormat={}{0:F0}%}" 
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                        
+                        <!-- Melee -->
+                        <TextBlock Text="Melee" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,0"/>
+                        <Grid Margin="0,3,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="60"/>
+                            </Grid.ColumnDefinitions>
+                            <Slider x:Name="MeleeSlider" Grid.Column="0" 
+                                   Minimum="0" Maximum="100" Value="60" 
+                                   TickFrequency="10" IsSnapToTickEnabled="True"
+                                   ValueChanged="IntensitySlider_ValueChanged"/>
+                            <TextBlock Grid.Column="1" Text="{Binding ElementName=MeleeSlider, Path=Value, StringFormat={}{0:F0}%}" 
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                        
+                        <!-- Damage & Impact Section -->
+                        <TextBlock Text="Incoming Damage" FontWeight="Bold" FontSize="14" Margin="0,20,0,5" Foreground="{StaticResource AccentBrush}"/>
+                        
+                        <!-- Laser Damage -->
+                        <TextBlock Text="Laser Damage" FontWeight="SemiBold" FontSize="12" Margin="0,5,0,0"/>
+                        <Grid Margin="0,3,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="60"/>
+                            </Grid.ColumnDefinitions>
+                            <Slider x:Name="LaserDamageSlider" Grid.Column="0" 
+                                   Minimum="0" Maximum="100" Value="60" 
+                                   TickFrequency="10" IsSnapToTickEnabled="True"
+                                   ValueChanged="IntensitySlider_ValueChanged"/>
+                            <TextBlock Grid.Column="1" Text="{Binding ElementName=LaserDamageSlider, Path=Value, StringFormat={}{0:F0}%}" 
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                        
+                        <!-- Ballistic Damage -->
+                        <TextBlock Text="Ballistic Damage" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,0"/>
+                        <Grid Margin="0,3,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="60"/>
+                            </Grid.ColumnDefinitions>
+                            <Slider x:Name="BallisticDamageSlider" Grid.Column="0" 
+                                   Minimum="0" Maximum="100" Value="60" 
+                                   TickFrequency="10" IsSnapToTickEnabled="True"
+                                   ValueChanged="IntensitySlider_ValueChanged"/>
+                            <TextBlock Grid.Column="1" Text="{Binding ElementName=BallisticDamageSlider, Path=Value, StringFormat={}{0:F0}%}" 
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                        
+                        <!-- Missile Damage -->
+                        <TextBlock Text="Missile Damage" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,0"/>
+                        <Grid Margin="0,3,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="60"/>
+                            </Grid.ColumnDefinitions>
+                            <Slider x:Name="MissileDamageSlider" Grid.Column="0" 
+                                   Minimum="0" Maximum="100" Value="60" 
+                                   TickFrequency="10" IsSnapToTickEnabled="True"
+                                   ValueChanged="IntensitySlider_ValueChanged"/>
+                            <TextBlock Grid.Column="1" Text="{Binding ElementName=MissileDamageSlider, Path=Value, StringFormat={}{0:F0}%}" 
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                        
+                        <!-- Melee Damage -->
+                        <TextBlock Text="Melee Damage" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,0"/>
+                        <Grid Margin="0,3,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="60"/>
+                            </Grid.ColumnDefinitions>
+                            <Slider x:Name="MeleeDamageSlider" Grid.Column="0" 
+                                   Minimum="0" Maximum="100" Value="60" 
+                                   TickFrequency="10" IsSnapToTickEnabled="True"
+                                   ValueChanged="IntensitySlider_ValueChanged"/>
+                            <TextBlock Grid.Column="1" Text="{Binding ElementName=MeleeDamageSlider, Path=Value, StringFormat={}{0:F0}%}" 
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                        
+                        <!-- Explosion Damage -->
+                        <TextBlock Text="Explosion Damage" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,0"/>
+                        <Grid Margin="0,3,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="60"/>
+                            </Grid.ColumnDefinitions>
+                            <Slider x:Name="ExplosionDamageSlider" Grid.Column="0" 
+                                   Minimum="0" Maximum="100" Value="60" 
+                                   TickFrequency="10" IsSnapToTickEnabled="True"
+                                   ValueChanged="IntensitySlider_ValueChanged"/>
+                            <TextBlock Grid.Column="1" Text="{Binding ElementName=ExplosionDamageSlider, Path=Value, StringFormat={}{0:F0}%}" 
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                        
+                        <!-- Impacts Section -->
+                        <TextBlock Text="Impacts" FontWeight="Bold" FontSize="14" Margin="0,15,0,5" Foreground="{StaticResource AccentBrush}"/>
+                        
+                        <!-- Landing -->
+                        <TextBlock Text="Landing Impacts" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,0"/>
+                        <Grid Margin="0,3,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="60"/>
+                            </Grid.ColumnDefinitions>
+                            <Slider x:Name="LandingSlider" Grid.Column="0" 
+                                   Minimum="0" Maximum="100" Value="60" 
+                                   TickFrequency="10" IsSnapToTickEnabled="True"
+                                   ValueChanged="IntensitySlider_ValueChanged"/>
+                            <TextBlock Grid.Column="1" Text="{Binding ElementName=LandingSlider, Path=Value, StringFormat={}{0:F0}%}" 
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                        
+                        <!-- Movement Section -->
+                        <TextBlock Text="Movement" FontWeight="Bold" FontSize="14" Margin="0,20,0,5" Foreground="{StaticResource AccentBrush}"/>
+                        
+                        <!-- Footsteps -->
+                        <TextBlock Text="Footsteps" FontWeight="SemiBold" FontSize="12" Margin="0,5,0,0"/>
+                        <Grid Margin="0,3,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="60"/>
+                            </Grid.ColumnDefinitions>
+                            <Slider x:Name="FootstepSlider" Grid.Column="0" 
+                                   Minimum="0" Maximum="100" Value="30" 
+                                   TickFrequency="10" IsSnapToTickEnabled="True"
+                                   ValueChanged="IntensitySlider_ValueChanged"/>
+                            <TextBlock Grid.Column="1" Text="{Binding ElementName=FootstepSlider, Path=Value, StringFormat={}{0:F0}%}" 
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                        
+                        <!-- Jump Jets -->
+                        <TextBlock Text="Jump Jets" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,0"/>
+                        <Grid Margin="0,3,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="60"/>
+                            </Grid.ColumnDefinitions>
+                            <Slider x:Name="JumpJetSlider" Grid.Column="0" 
+                                   Minimum="0" Maximum="100" Value="50" 
+                                   TickFrequency="10" IsSnapToTickEnabled="True"
+                                   ValueChanged="IntensitySlider_ValueChanged"/>
+                            <TextBlock Grid.Column="1" Text="{Binding ElementName=JumpJetSlider, Path=Value, StringFormat={}{0:F0}%}" 
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            
+            <!-- Advanced Mode Tab -->
+            <TabItem Header="Advanced Mode" FontSize="14">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="10">
+                        <TextBlock Text="Advanced Configuration" FontWeight="Bold" FontSize="16" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,10"/>
+                        <TextBlock Text="Fine-tune duration, frequency, and envelope for each effect type" 
+                                  Opacity="0.8" Margin="0,0,0,15"/>
+                        
+                        <!-- Weapon Fire Effects -->
+                        <Expander Header="🔫 Weapon Fire Effects" FontWeight="Bold" FontSize="13" IsExpanded="True" Margin="0,5,0,5">
+                            <StackPanel Margin="15,10,0,10">
+                                
+                                <!-- Ballistics -->
+                                <TextBlock Text="Ballistics (Autocannons)" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,5,0,5"/>
+                                <TextBlock Text="Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
+                                <Grid Margin="0,2,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="BallisticDurationSlider" Minimum="50" Maximum="500" Value="150" TickFrequency="10" 
+                                           ValueChanged="AdvancedSlider_ValueChanged"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=BallisticDurationSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,5,0">
+                                        <TextBlock Text="Attack (ms):" FontSize="11"/>
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="50"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider x:Name="BallisticAttackSlider" Minimum="1" Maximum="100" Value="10" 
+                                                   ValueChanged="AdvancedSlider_ValueChanged"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ElementName=BallisticAttackSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="5,0,0,0">
+                                        <TextBlock Text="Fade (ms):" FontSize="11"/>
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="50"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider x:Name="BallisticFadeSlider" Minimum="10" Maximum="300" Value="120" 
+                                                   ValueChanged="AdvancedSlider_ValueChanged"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ElementName=BallisticFadeSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+                                
+                                <!-- Lasers -->
+                                <TextBlock Text="Lasers" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,15,0,5"/>
+                                <TextBlock Text="Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
+                                <Grid Margin="0,2,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="LaserDurationSlider" Minimum="50" Maximum="1000" Value="300" TickFrequency="10" 
+                                           ValueChanged="AdvancedSlider_ValueChanged"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=LaserDurationSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                                <TextBlock Text="Frequency (Hz):" FontSize="11" Margin="0,3,0,0"/>
+                                <Grid Margin="0,2,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="LaserFrequencySlider" Minimum="10" Maximum="100" Value="40" TickFrequency="5" 
+                                           ValueChanged="AdvancedSlider_ValueChanged"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=LaserFrequencySlider, Path=Value, StringFormat={}{0:F0}}" 
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,5,0">
+                                        <TextBlock Text="Attack (ms):" FontSize="11"/>
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="50"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider x:Name="LaserAttackSlider" Minimum="1" Maximum="100" Value="30" 
+                                                   ValueChanged="AdvancedSlider_ValueChanged"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ElementName=LaserAttackSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="5,0,0,0">
+                                        <TextBlock Text="Fade (ms):" FontSize="11"/>
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="50"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider x:Name="LaserFadeSlider" Minimum="10" Maximum="300" Value="80" 
+                                                   ValueChanged="AdvancedSlider_ValueChanged"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ElementName=LaserFadeSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+                                
+                                <!-- Machine Guns -->
+                                <TextBlock Text="Machine Guns" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,15,0,5"/>
+                                <TextBlock Text="Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
+                                <Grid Margin="0,2,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="MGDurationSlider" Minimum="20" Maximum="200" Value="60" TickFrequency="5" 
+                                           ValueChanged="AdvancedSlider_ValueChanged"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=MGDurationSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                                <TextBlock Text="Frequency (Hz):" FontSize="11" Margin="0,3,0,0"/>
+                                <Grid Margin="0,2,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="MGFrequencySlider" Minimum="10" Maximum="100" Value="33" TickFrequency="5" 
+                                           ValueChanged="AdvancedSlider_ValueChanged"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=MGFrequencySlider, Path=Value, StringFormat={}{0:F0}}" 
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                                
+                                <!-- PPCs -->
+                                <TextBlock Text="PPCs" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,15,0,5"/>
+                                <TextBlock Text="Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
+                                <Grid Margin="0,2,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="PPCDurationSlider" Minimum="50" Maximum="500" Value="200" 
+                                           ValueChanged="AdvancedSlider_ValueChanged"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=PPCDurationSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                                
+                                <!-- Missiles -->
+                                <TextBlock Text="Missiles (Rumble)" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,15,0,5"/>
+                                <TextBlock Text="Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
+                                <Grid Margin="0,2,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="MissileDurationSlider" Minimum="50" Maximum="1500" Value="200" 
+                                           ValueChanged="AdvancedSlider_ValueChanged"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=MissileDurationSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                                <TextBlock Text="Frequency (Hz):" FontSize="11" Margin="0,3,0,0"/>
+                                <Grid Margin="0,2,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="MissileFrequencySlider" Minimum="10" Maximum="100" Value="35" TickFrequency="5" 
+                                           ValueChanged="AdvancedSlider_ValueChanged"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=MissileFrequencySlider, Path=Value, StringFormat={}{0:F0}}" 
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                                <TextBlock Text="Rumble Intensity (%):" FontSize="11" Margin="0,3,0,0"/>
+                                <Grid Margin="0,2,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="MissileRumbleMultiplierSlider" Minimum="0" Maximum="100" Value="100" TickFrequency="10"
+                                           ValueChanged="AdvancedSlider_ValueChanged"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=MissileRumbleMultiplierSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,5,0">
+                                        <TextBlock Text="Attack (ms):" FontSize="11"/>
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="50"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider x:Name="MissileAttackSlider" Minimum="1" Maximum="100" Value="20" 
+                                                   ValueChanged="AdvancedSlider_ValueChanged"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ElementName=MissileAttackSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="5,0,0,0">
+                                        <TextBlock Text="Fade (ms):" FontSize="11"/>
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="50"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider x:Name="MissileFadeSlider" Minimum="10" Maximum="600" Value="150" 
+                                                   ValueChanged="AdvancedSlider_ValueChanged"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ElementName=MissileFadeSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+                                
+                            </StackPanel>
+                        </Expander>
+                        
+                        <!-- Movement Effects -->
+                        <Expander Header="👣 Movement Effects" FontWeight="Bold" FontSize="13" Margin="0,5,0,5">
+                            <StackPanel Margin="15,10,0,10">
+                                
+                                <!-- Footsteps -->
+                                <TextBlock Text="Footsteps" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,5,0,5"/>
+                                <TextBlock Text="Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
+                                <Grid Margin="0,2,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="FootstepDurationSlider" Minimum="50" Maximum="300" Value="100" 
+                                           ValueChanged="AdvancedSlider_ValueChanged"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=FootstepDurationSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                                
+                                <!-- Jump Jets -->
+                                <TextBlock Text="Jump Jets" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,15,0,5"/>
+                                <TextBlock Text="Frequency (Hz):" FontSize="11" Margin="0,3,0,0"/>
+                                <Grid Margin="0,2,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="JumpJetFrequencySlider" Minimum="10" Maximum="60" Value="25" 
+                                           ValueChanged="AdvancedSlider_ValueChanged"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=JumpJetFrequencySlider, Path=Value, StringFormat={}{0:F0}}" 
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                                
+                                <!-- Landing -->
+                                <TextBlock Text="Landing" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,15,0,5"/>
+                                <TextBlock Text="Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
+                                <Grid Margin="0,2,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="LandingDurationSlider" Minimum="100" Maximum="600" Value="300" 
+                                           ValueChanged="AdvancedSlider_ValueChanged"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=LandingDurationSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                                
+                            </StackPanel>
+                        </Expander>
+                        
+                        <!-- Incoming Damage Effects -->
+                        <Expander Header="💥 Incoming Damage Effects" FontWeight="Bold" FontSize="13" Margin="0,5,0,5">
+                            <StackPanel Margin="15,10,0,10">
+                                
+                                <!-- Laser Damage -->
+                                <TextBlock Text="Laser Damage (Trace)" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,5,0,5"/>
+                                <TextBlock Text="Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
+                                <Grid Margin="0,2,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="LaserDmgDurationSlider" Minimum="50" Maximum="1000" Value="300" 
+                                           ValueChanged="AdvancedSlider_ValueChanged"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=LaserDmgDurationSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                                <TextBlock Text="Frequency (Hz):" FontSize="11" Margin="0,3,0,0"/>
+                                <Grid Margin="0,2,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="LaserDmgFrequencySlider" Minimum="10" Maximum="100" Value="50" 
+                                           ValueChanged="AdvancedSlider_ValueChanged"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=LaserDmgFrequencySlider, Path=Value, StringFormat={}{0:F0}}" 
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,5,0">
+                                        <TextBlock Text="Attack (ms):" FontSize="11"/>
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="50"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider x:Name="LaserDmgAttackSlider" Minimum="1" Maximum="100" Value="40" 
+                                                   ValueChanged="AdvancedSlider_ValueChanged"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ElementName=LaserDmgAttackSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="5,0,0,0">
+                                        <TextBlock Text="Fade (ms):" FontSize="11"/>
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="50"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider x:Name="LaserDmgFadeSlider" Minimum="10" Maximum="300" Value="120" 
+                                                   ValueChanged="AdvancedSlider_ValueChanged"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ElementName=LaserDmgFadeSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+                                
+                                <!-- Ballistic Damage -->
+                                <TextBlock Text="Ballistic Damage (Autocannons)" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,15,0,5"/>
+                                <TextBlock Text="Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
+                                <Grid Margin="0,2,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="BallisticDmgDurationSlider" Minimum="50" Maximum="600" Value="300" 
+                                           ValueChanged="AdvancedSlider_ValueChanged"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=BallisticDmgDurationSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,5,0">
+                                        <TextBlock Text="Attack (ms):" FontSize="11"/>
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="50"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider x:Name="BallisticDmgAttackSlider" Minimum="1" Maximum="100" Value="40" 
+                                                   ValueChanged="AdvancedSlider_ValueChanged"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ElementName=BallisticDmgAttackSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="5,0,0,0">
+                                        <TextBlock Text="Fade (ms):" FontSize="11"/>
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="50"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider x:Name="BallisticDmgFadeSlider" Minimum="10" Maximum="300" Value="120" 
+                                                   ValueChanged="AdvancedSlider_ValueChanged"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ElementName=BallisticDmgFadeSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+                                
+                                <!-- Missile Damage -->
+                                <TextBlock Text="Missile Damage" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,15,0,5"/>
+                                <TextBlock Text="Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
+                                <Grid Margin="0,2,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="MissileDmgDurationSlider" Minimum="50" Maximum="600" Value="300" 
+                                           ValueChanged="AdvancedSlider_ValueChanged"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=MissileDmgDurationSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,5,0">
+                                        <TextBlock Text="Attack (ms):" FontSize="11"/>
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="50"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider x:Name="MissileDmgAttackSlider" Minimum="1" Maximum="100" Value="15" 
+                                                   ValueChanged="AdvancedSlider_ValueChanged"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ElementName=MissileDmgAttackSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="5,0,0,0">
+                                        <TextBlock Text="Fade (ms):" FontSize="11"/>
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="50"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider x:Name="MissileDmgFadeSlider" Minimum="10" Maximum="300" Value="200" 
+                                                   ValueChanged="AdvancedSlider_ValueChanged"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ElementName=MissileDmgFadeSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+                                
+                                <!-- Melee Damage -->
+                                <TextBlock Text="Melee Damage" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,15,0,5"/>
+                                <TextBlock Text="Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
+                                <Grid Margin="0,2,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="MeleeDmgDurationSlider" Minimum="100" Maximum="800" Value="400" 
+                                           ValueChanged="AdvancedSlider_ValueChanged"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=MeleeDmgDurationSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,5,0">
+                                        <TextBlock Text="Attack (ms):" FontSize="11"/>
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="50"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider x:Name="MeleeDmgAttackSlider" Minimum="1" Maximum="100" Value="5" 
+                                                   ValueChanged="AdvancedSlider_ValueChanged"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ElementName=MeleeDmgAttackSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="5,0,0,0">
+                                        <TextBlock Text="Fade (ms):" FontSize="11"/>
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="50"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider x:Name="MeleeDmgFadeSlider" Minimum="10" Maximum="500" Value="300" 
+                                                   ValueChanged="AdvancedSlider_ValueChanged"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ElementName=MeleeDmgFadeSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+                                
+                                <!-- Explosion Damage -->
+                                <TextBlock Text="Explosion Damage - Impact Effect" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,15,0,5"/>
+                                <TextBlock Text="Impact Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
+                                <Grid Margin="0,2,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="ExplosionImpactDurationSlider" Minimum="100" Maximum="1000" Value="300" 
+                                           ValueChanged="AdvancedSlider_ValueChanged"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=ExplosionImpactDurationSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                                <TextBlock Text="Impact Intensity (%):" FontSize="11" Margin="0,3,0,0"/>
+                                <Grid Margin="0,2,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="ExplosionImpactMultiplierSlider" Minimum="0" Maximum="100" Value="100" TickFrequency="10"
+                                           ValueChanged="AdvancedSlider_ValueChanged"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=ExplosionImpactMultiplierSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,5,0">
+                                        <TextBlock Text="Impact Attack (ms):" FontSize="11"/>
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="50"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider x:Name="ExplosionImpactAttackSlider" Minimum="1" Maximum="100" Value="20" 
+                                                   ValueChanged="AdvancedSlider_ValueChanged"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ElementName=ExplosionImpactAttackSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="5,0,0,0">
+                                        <TextBlock Text="Impact Fade (ms):" FontSize="11"/>
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="50"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider x:Name="ExplosionImpactFadeSlider" Minimum="10" Maximum="800" Value="400" 
+                                                   ValueChanged="AdvancedSlider_ValueChanged"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ElementName=ExplosionImpactFadeSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+                                
+                                <TextBlock Text="Explosion Damage - Rumble Effect" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,15,0,5"/>
+                                <TextBlock Text="Rumble Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
+                                <Grid Margin="0,2,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="ExplosionRumbleDurationSlider" Minimum="100" Maximum="2000" Value="500" 
+                                           ValueChanged="AdvancedSlider_ValueChanged"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=ExplosionRumbleDurationSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                                <TextBlock Text="Rumble Frequency (Hz):" FontSize="11" Margin="0,3,0,0"/>
+                                <Grid Margin="0,2,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="ExplosionRumbleFrequencySlider" Minimum="10" Maximum="60" Value="25" 
+                                           ValueChanged="AdvancedSlider_ValueChanged"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=ExplosionRumbleFrequencySlider, Path=Value, StringFormat={}{0:F0}}" 
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                                <TextBlock Text="Rumble Intensity (% of Impact):" FontSize="11" Margin="0,3,0,0"/>
+                                <Grid Margin="0,2,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="ExplosionRumbleMultiplierSlider" Minimum="0" Maximum="100" Value="100" TickFrequency="10"
+                                           ValueChanged="AdvancedSlider_ValueChanged"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ElementName=ExplosionRumbleMultiplierSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,5,0">
+                                        <TextBlock Text="Rumble Attack (ms):" FontSize="11"/>
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="50"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider x:Name="ExplosionRumbleAttackSlider" Minimum="1" Maximum="200" Value="50" 
+                                                   ValueChanged="AdvancedSlider_ValueChanged"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ElementName=ExplosionRumbleAttackSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="5,0,0,0">
+                                        <TextBlock Text="Rumble Fade (ms):" FontSize="11"/>
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="50"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider x:Name="ExplosionRumbleFadeSlider" Minimum="10" Maximum="1000" Value="400" 
+                                                   ValueChanged="AdvancedSlider_ValueChanged"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ElementName=ExplosionRumbleFadeSlider, Path=Value, StringFormat={}{0:F0}}" 
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+                                
+                            </StackPanel>
+                        </Expander>
+                        
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            
+            <!-- About Tab -->
+            <TabItem Header="About" FontSize="14">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="10">
+                        <TextBlock Text="MechFFB v0.1.0 Alpha" FontWeight="Bold" FontSize="16"/>
+                        <TextBlock Text="Real-time force feedback for MechWarrior 5: Mercenaries" 
+                                  Margin="0,5,0,15" Opacity="0.8"/>
+                        
+                        <TextBlock Text="Based on MechShaker architecture by sicsix" 
+                                  FontWeight="Bold" Margin="0,10,0,5"/>
+                        <TextBlock Text="• Reads same memory-mapped file as MechShaker" 
+                                  Opacity="0.8" Margin="10,0,0,0"/>
+                        <TextBlock Text="• Can run alongside MechShaker for ultimate immersion" 
+                                  Opacity="0.8" Margin="10,5,0,0"/>
+                        
+                        <TextBlock Text="Requirements:" FontWeight="Bold" Margin="0,15,0,5"/>
+                        <TextBlock Text="• MechShakerRelay mod installed in MW5" 
+                                  Opacity="0.8" Margin="10,0,0,0"/>
+                        <TextBlock Text="• MechShakerBridge plugin (UEVR or UML)" 
+                                  Opacity="0.8" Margin="10,5,0,0"/>
+                        <TextBlock Text="• DirectInput force feedback joystick" 
+                                  Opacity="0.8" Margin="10,5,0,0"/>
+                        
+                        <TextBlock Text="License: GPL-3.0" 
+                                  FontWeight="Bold" Margin="0,15,0,0"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            
+            <!-- Debug Tab -->
+            <TabItem Header="Debug" FontSize="14">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                        <TextBlock Text="Debug Log" FontWeight="Bold" FontSize="16" VerticalAlignment="Center"/>
+                        <Button Content="Clear Log" Click="ClearLog_Click" Margin="20,0,0,0" Padding="10,5"/>
+                    </StackPanel>
+                    
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <TextBox x:Name="DebugLogTextBox" 
+                                TextWrapping="Wrap" 
+                                IsReadOnly="True"
+                                FontFamily="Consolas"
+                                FontSize="11"
+                                Background="#1E1E1E"
+                                Foreground="#D4D4D4"
+                                BorderThickness="0"
+                                Padding="5"/>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+        </TabControl>
+        
+        <!-- Status Bar -->
+        <Border Grid.Row="3" Background="{StaticResource PrimaryBrush}" 
+                BorderBrush="{StaticResource SecondaryBrush}" BorderThickness="1" 
+                Padding="10" Margin="0,10,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <Ellipse x:Name="TelemetryStatusIndicator" Width="12" Height="12" 
+                            Fill="Red" Margin="0,0,5,0"/>
+                    <TextBlock x:Name="TelemetryStatusText" Text="Not Connected to MW5"/>
+                </StackPanel>
+                
+                <TextBlock Grid.Column="1" x:Name="StatusText" 
+                          Text="Ready" HorizontalAlignment="Center"/>
+                
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <TextBlock Text="Events: "/>
+                    <TextBlock x:Name="EventCountText" Text="0" FontWeight="Bold"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+        
+        <!-- Control Buttons -->
+        <Grid Grid.Row="4" Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            
+            <Button x:Name="StartButton" Grid.Column="0" Content="START" 
+                   Click="Start_Click" Height="40" FontSize="16" FontWeight="Bold"
+                   Background="{StaticResource AccentBrush}"/>
+            
+            <Button x:Name="StopButton" Grid.Column="1" Content="STOP" 
+                   Click="Stop_Click" Height="40" FontSize="16" FontWeight="Bold"
+                   IsEnabled="False"/>
+        </Grid>
+    </Grid>
+</Window>
