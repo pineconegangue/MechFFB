@@ -6,56 +6,34 @@ Force feedback system for MechWarrior 5 using SDL2 (same as DCS World).
 
 ### If Using vJoy + Joystick Gremlin:
 
-**In MechFFB**: Select **MOZA AB9 FFB Base** (NOT vJoy)  
-**In MW5**: Use **vJoy** for controls
-
-This is exactly how DCS works - vJoy for input, physical device for FFB.
-
-See **SETUP_GUIDE.md** for detailed instructions.
+**In MechFFB**: Select your actual device, do not select vJoy or any other virtual controller  
+**In MW5**: You can still use vJoy/Joystick gremlin ETC for inputs
 
 ### Direct Setup (No vJoy):
 
 1. Build and run MechFFBUI
-2. Select your MOZA AB9
-3. Click "Test Device" - feel the force!
+2. Select your FFB Joystick
+3. Click "Test Device" to verify FFB output is actually working.
 4. Click "Start Engine"
-5. Launch MW5 and play
+5. Launch MW5 and ensure MechShaker mod is enabled
 
 ## Requirements
 
-- **SDL2.dll** - Run `Download-SDL2.ps1` or download manually
+- **SDL2.dll** - I have added this to this repo, move it to same folder as the .exe after compiling
 - **MechWarrior 5** with **MechShaker mod** installed
 - **Force feedback device** (MOZA AB9 tested and working)
 
 ## Features
 
-- ✅ SDL2 backend (same as DCS)
-- ✅ DirectInput backend (alternative)
-- ✅ Weapon recoil effects
-- ✅ Damage impact effects
-- ✅ Simple intensity controls
-- 🚧 Advanced per-weapon tuning (coming soon)
-- 🚧 Movement/footstep effects (coming soon)
+-  SDL2 backend (same as DCS)
+-  Weapon recoil effects
+-  Damage impact effects
+-  Simple intensity controls
+-  Advanced per-weapon tuning
+-  Movement/footstep effects 
 
-## Why Two Backends?
-
-**SDL2** (Default):
-- Same library DCS uses
-- Direct device access
-- Best for MOZA AB9
-
-**DirectInput**:
-- Alternative if SDL2 has issues
-- Legacy compatibility
-
-Both work with vJoy setups when you select the physical device!
-
-## Next Steps
-
-If the test works:
-1. Install MechShaker mod in MW5
-2. Configure MW5 to use vJoy (if using Joystick Gremlin)
-3. Start MechFFB and click "Start Engine"  
-4. Launch MW5 and feel the effects!
-
-See **SETUP_GUIDE.md** for complete setup instructions.
+Quirks:
+The "Events" count on the right will always read 0 regardless of whether events are successfully being read - refer to the debug window instead
+<img width="1891" height="57" alt="image" src="https://github.com/user-attachments/assets/9b171e7e-1c2e-4be6-aa54-4935a9090dcf" />
+YAML and YAW introduce different firing modes for missiles. Streak LRMs can be fired as individual missiles and the FFB is mapped appropriately, but normal LRMs firing in salvos does not register separate events at this stage.
+Laser 'duration' slider is a bit redundant - this is a residual feature but lasers now have their durations read and their outputs are adjusted accordingly.
