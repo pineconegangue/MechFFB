@@ -12,16 +12,11 @@ Force feedback system for MechWarrior 5 using SDL2 (same as DCS World).
 ### Setup:
 
 1. Build and run MechFFB.exe
-2. Select your FFB Joystick
-3. Click "Test Device" to verify FFB output is actually working.
-4. Click "Start Engine"
-5. Launch MW5 and ensure MechShaker mod is enabled
-
-## Requirements
-
-- **SDL2.dll** - I have added this to this repo, move it to same folder as the .exe after compiling
-- **MechWarrior 5** with **MechShaker mod** installed
-- **Force feedback device** (MOZA AB9 tested and working)
+2. **SDL2.dll** - I have added this to this repo, move it to same folder as the .exe after compiling
+3. Select your FFB Joystick
+4. Click "Test Device" to verify FFB output is actually working.
+5. Click "Start Engine"
+6. Launch MW5 and ensure MechShaker mod is enabled
 
 ## Features
 
