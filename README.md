@@ -1,5 +1,9 @@
 # MechFFB - Force Feedback for MechWarrior 5
 
+
+https://github.com/user-attachments/assets/5458457d-3682-4a3d-bd14-708426aa1956
+
+
 Force feedback system for MechWarrior 5 using SDL2 (same as DCS World).
 
 ## Quick Start
