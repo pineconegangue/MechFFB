@@ -4,7 +4,7 @@
 https://github.com/user-attachments/assets/5458457d-3682-4a3d-bd14-708426aa1956
 
 
-Force feedback system for MechWarrior 5 using SDL2 (same as DCS World).
+Force feedback system for MechWarrior 5 using SDL2.
 
 ## Quick Start
 
@@ -13,10 +13,12 @@ Force feedback system for MechWarrior 5 using SDL2 (same as DCS World).
 **In MechFFB**: Select your actual device, do not select vJoy or any other virtual controller  
 **In MW5**: You can still use vJoy/Joystick gremlin ETC for inputs
 
+**YOU WILL NEED THE MECHSHAKER MOD FOR THIS TO WORK** - https://www.nexusmods.com/mechwarrior5mercenaries/mods/1029
+
 ### Setup:
 
 1. Build solution 
-2. **SDL2.dll** - I have added this to this repo, move it to same folder as the .exe after compiling
+2. **SDL2.dll** - I have added this to this repo, move it to same folder as MechFFB.exe after compiling
 3. Run MechFFB.exe
 4. Select your FFB Joystick
 5. Click "Test Device" to verify FFB output is actually working.
@@ -25,7 +27,7 @@ Force feedback system for MechWarrior 5 using SDL2 (same as DCS World).
 
 ## Features
 
--  SDL2 backend (same as DCS)
+-  SDL2 backend
 -  Weapon recoil effects
 -  Damage impact effects
 -  Simple intensity controls
@@ -33,7 +35,7 @@ Force feedback system for MechWarrior 5 using SDL2 (same as DCS World).
 -  Movement/footstep effects 
 
 Quirks:
-The "Events" count on the right will always read 0 regardless of whether events are successfully being read - refer to the debug window instead
+- The "Events" count on the right will always read 0 regardless of whether events are successfully being read - refer to the debug window instead
 <img width="1891" height="57" alt="image" src="https://github.com/user-attachments/assets/9b171e7e-1c2e-4be6-aa54-4935a9090dcf" />
-YAML and YAW introduce different firing modes for missiles. Streak LRMs can be fired as individual missiles and the FFB is mapped appropriately, but normal LRMs firing in salvos does not register separate events at this stage.
-Laser 'duration' slider is a bit redundant - this is a residual feature but lasers now have their durations read and their outputs are adjusted accordingly.
+- YAML and YAW introduce different firing modes for missiles. Streak LRMs can be fired as individual missiles and the FFB is mapped appropriately, but normal LRMs firing in salvos does not register separate events at this stage, so you will only get one 'missile firing' event.
+- Laser 'duration' slider is a bit redundant - this is a residual feature but lasers now have their durations read and their outputs are adjusted accordingly.
