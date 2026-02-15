@@ -8,7 +8,7 @@
         Height="600" Width="800"
         Background="{StaticResource BackgroundBrush}"
         WindowStartupLocation="CenterScreen">
-    
+
     <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -17,7 +17,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        
+
         <!-- Header -->
         <Border Grid.Row="0" Background="{StaticResource PrimaryBrush}" 
                 BorderBrush="{StaticResource AccentBrush}" BorderThickness="2" 
@@ -29,7 +29,7 @@
                           FontSize="14" HorizontalAlignment="Center" Opacity="0.8"/>
             </StackPanel>
         </Border>
-        
+
         <!-- Device Selection -->
         <Border Grid.Row="1" Background="{StaticResource PrimaryBrush}" 
                 BorderBrush="{StaticResource SecondaryBrush}" BorderThickness="1" 
@@ -42,27 +42,33 @@
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    
+
                     <ComboBox x:Name="DeviceComboBox" Grid.Column="0" 
                              DisplayMemberPath="Name"
-                             SelectionChanged="DeviceComboBox_SelectionChanged"/>
-                    
+                             SelectionChanged="DeviceComboBox_SelectionChanged" BorderBrush="#FFACACAC"/>
+
                     <Button Grid.Column="1" Content="Refresh Devices" 
                            Click="RefreshDevices_Click" Width="120"/>
-                    
+
                     <Button Grid.Column="2" Content="Test Device" 
                            Click="TestDevice_Click" Width="100"
                            IsEnabled="{Binding IsDeviceSelected}"/>
                 </Grid>
             </StackPanel>
         </Border>
-        
+
         <!-- Main Content Area with Tabs -->
         <TabControl Grid.Row="2" Background="{StaticResource PrimaryBrush}"
                    BorderBrush="{StaticResource SecondaryBrush}">
-            
+
             <!-- Simple Mode Tab -->
             <TabItem Header="Settings" FontSize="14">
+                <TabItem.Background>
+                    <RadialGradientBrush>
+                        <GradientStop Color="#FF3D6182" Offset="1"/>
+                        <GradientStop Color="#FF3D6182" Offset="0"/>
+                    </RadialGradientBrush>
+                </TabItem.Background>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="10">
                         <TextBlock Text="Master Intensity" FontWeight="Bold" FontSize="14" Foreground="{StaticResource AccentBrush}"/>
@@ -79,10 +85,10 @@
                                       FontWeight="Bold" FontSize="14" 
                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Grid>
-                        
+
                         <!-- Weapon Effects Section -->
                         <TextBlock Text="Weapon Recoil" FontWeight="Bold" FontSize="14" Margin="0,15,0,5" Foreground="{StaticResource AccentBrush}"/>
-                        
+
                         <!-- Ballistics -->
                         <TextBlock Text="Ballistics (Autocannons)" FontWeight="SemiBold" FontSize="12" Margin="0,5,0,0"/>
                         <Grid Margin="0,3,0,8">
@@ -97,7 +103,7 @@
                             <TextBlock Grid.Column="1" Text="{Binding ElementName=BallisticSlider, Path=Value, StringFormat={}{0:F0}%}" 
                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Grid>
-                        
+
                         <!-- Lasers -->
                         <TextBlock Text="Lasers" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,0"/>
                         <Grid Margin="0,3,0,8">
@@ -112,7 +118,7 @@
                             <TextBlock Grid.Column="1" Text="{Binding ElementName=LaserSlider, Path=Value, StringFormat={}{0:F0}%}" 
                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Grid>
-                        
+
                         <!-- PPCs -->
                         <TextBlock Text="PPCs" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,0"/>
                         <Grid Margin="0,3,0,8">
@@ -127,7 +133,7 @@
                             <TextBlock Grid.Column="1" Text="{Binding ElementName=PPCSlider, Path=Value, StringFormat={}{0:F0}%}" 
                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Grid>
-                        
+
                         <!-- Missiles -->
                         <TextBlock Text="Missiles" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,0"/>
                         <Grid Margin="0,3,0,8">
@@ -142,7 +148,7 @@
                             <TextBlock Grid.Column="1" Text="{Binding ElementName=MissileSlider, Path=Value, StringFormat={}{0:F0}%}" 
                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Grid>
-                        
+
                         <!-- Melee -->
                         <TextBlock Text="Melee" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,0"/>
                         <Grid Margin="0,3,0,0">
@@ -157,10 +163,10 @@
                             <TextBlock Grid.Column="1" Text="{Binding ElementName=MeleeSlider, Path=Value, StringFormat={}{0:F0}%}" 
                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Grid>
-                        
+
                         <!-- Damage & Impact Section -->
                         <TextBlock Text="Incoming Damage" FontWeight="Bold" FontSize="14" Margin="0,20,0,5" Foreground="{StaticResource AccentBrush}"/>
-                        
+
                         <!-- Laser Damage -->
                         <TextBlock Text="Laser Damage" FontWeight="SemiBold" FontSize="12" Margin="0,5,0,0"/>
                         <Grid Margin="0,3,0,8">
@@ -175,7 +181,7 @@
                             <TextBlock Grid.Column="1" Text="{Binding ElementName=LaserDamageSlider, Path=Value, StringFormat={}{0:F0}%}" 
                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Grid>
-                        
+
                         <!-- Ballistic Damage -->
                         <TextBlock Text="Ballistic Damage" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,0"/>
                         <Grid Margin="0,3,0,8">
@@ -190,7 +196,7 @@
                             <TextBlock Grid.Column="1" Text="{Binding ElementName=BallisticDamageSlider, Path=Value, StringFormat={}{0:F0}%}" 
                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Grid>
-                        
+
                         <!-- Missile Damage -->
                         <TextBlock Text="Missile Damage" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,0"/>
                         <Grid Margin="0,3,0,8">
@@ -205,7 +211,7 @@
                             <TextBlock Grid.Column="1" Text="{Binding ElementName=MissileDamageSlider, Path=Value, StringFormat={}{0:F0}%}" 
                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Grid>
-                        
+
                         <!-- Melee Damage -->
                         <TextBlock Text="Melee Damage" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,0"/>
                         <Grid Margin="0,3,0,8">
@@ -220,7 +226,7 @@
                             <TextBlock Grid.Column="1" Text="{Binding ElementName=MeleeDamageSlider, Path=Value, StringFormat={}{0:F0}%}" 
                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Grid>
-                        
+
                         <!-- Explosion Damage -->
                         <TextBlock Text="Explosion Damage" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,0"/>
                         <Grid Margin="0,3,0,8">
@@ -235,10 +241,10 @@
                             <TextBlock Grid.Column="1" Text="{Binding ElementName=ExplosionDamageSlider, Path=Value, StringFormat={}{0:F0}%}" 
                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Grid>
-                        
+
                         <!-- Impacts Section -->
                         <TextBlock Text="Impacts" FontWeight="Bold" FontSize="14" Margin="0,15,0,5" Foreground="{StaticResource AccentBrush}"/>
-                        
+
                         <!-- Landing -->
                         <TextBlock Text="Landing Impacts" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,0"/>
                         <Grid Margin="0,3,0,0">
@@ -253,10 +259,10 @@
                             <TextBlock Grid.Column="1" Text="{Binding ElementName=LandingSlider, Path=Value, StringFormat={}{0:F0}%}" 
                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Grid>
-                        
+
                         <!-- Movement Section -->
                         <TextBlock Text="Movement" FontWeight="Bold" FontSize="14" Margin="0,20,0,5" Foreground="{StaticResource AccentBrush}"/>
-                        
+
                         <!-- Footsteps -->
                         <TextBlock Text="Footsteps" FontWeight="SemiBold" FontSize="12" Margin="0,5,0,0"/>
                         <Grid Margin="0,3,0,8">
@@ -271,7 +277,7 @@
                             <TextBlock Grid.Column="1" Text="{Binding ElementName=FootstepSlider, Path=Value, StringFormat={}{0:F0}%}" 
                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Grid>
-                        
+
                         <!-- Jump Jets -->
                         <TextBlock Text="Jump Jets" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,0"/>
                         <Grid Margin="0,3,0,10">
@@ -289,19 +295,25 @@
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
-            
+
             <!-- Advanced Mode Tab -->
             <TabItem Header="Advanced Mode" FontSize="14">
+                <TabItem.Background>
+                    <RadialGradientBrush>
+                        <GradientStop Color="#FF3D6182" Offset="1"/>
+                        <GradientStop Color="#FF3D6182" Offset="0"/>
+                    </RadialGradientBrush>
+                </TabItem.Background>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="10">
                         <TextBlock Text="Advanced Configuration" FontWeight="Bold" FontSize="16" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,10"/>
                         <TextBlock Text="Fine-tune duration, frequency, and envelope for each effect type" 
                                   Opacity="0.8" Margin="0,0,0,15"/>
-                        
+
                         <!-- Weapon Fire Effects -->
                         <Expander Header="🔫 Weapon Fire Effects" FontWeight="Bold" FontSize="13" IsExpanded="True" Margin="0,5,0,5">
                             <StackPanel Margin="15,10,0,10">
-                                
+
                                 <!-- Ballistics -->
                                 <TextBlock Text="Ballistics (Autocannons)" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,5,0,5"/>
                                 <TextBlock Text="Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
@@ -347,7 +359,7 @@
                                         </Grid>
                                     </StackPanel>
                                 </Grid>
-                                
+
                                 <!-- Lasers -->
                                 <TextBlock Text="Lasers" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,15,0,5"/>
                                 <TextBlock Text="Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
@@ -404,7 +416,7 @@
                                         </Grid>
                                     </StackPanel>
                                 </Grid>
-                                
+
                                 <!-- Machine Guns -->
                                 <TextBlock Text="Machine Guns" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,15,0,5"/>
                                 <TextBlock Text="Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
@@ -429,7 +441,7 @@
                                     <TextBlock Grid.Column="1" Text="{Binding ElementName=MGFrequencySlider, Path=Value, StringFormat={}{0:F0}}" 
                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Grid>
-                                
+
                                 <!-- PPCs -->
                                 <TextBlock Text="PPCs" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,15,0,5"/>
                                 <TextBlock Text="Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
@@ -443,7 +455,7 @@
                                     <TextBlock Grid.Column="1" Text="{Binding ElementName=PPCDurationSlider, Path=Value, StringFormat={}{0:F0}}" 
                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Grid>
-                                
+
                                 <!-- Missiles -->
                                 <TextBlock Text="Missiles (Rumble)" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,15,0,5"/>
                                 <TextBlock Text="Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
@@ -511,14 +523,14 @@
                                         </Grid>
                                     </StackPanel>
                                 </Grid>
-                                
+
                             </StackPanel>
                         </Expander>
-                        
+
                         <!-- Movement Effects -->
                         <Expander Header="👣 Movement Effects" FontWeight="Bold" FontSize="13" Margin="0,5,0,5">
                             <StackPanel Margin="15,10,0,10">
-                                
+
                                 <!-- Footsteps -->
                                 <TextBlock Text="Footsteps" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,5,0,5"/>
                                 <TextBlock Text="Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
@@ -532,7 +544,7 @@
                                     <TextBlock Grid.Column="1" Text="{Binding ElementName=FootstepDurationSlider, Path=Value, StringFormat={}{0:F0}}" 
                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Grid>
-                                
+
                                 <!-- Jump Jets -->
                                 <TextBlock Text="Jump Jets" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,15,0,5"/>
                                 <TextBlock Text="Frequency (Hz):" FontSize="11" Margin="0,3,0,0"/>
@@ -546,7 +558,7 @@
                                     <TextBlock Grid.Column="1" Text="{Binding ElementName=JumpJetFrequencySlider, Path=Value, StringFormat={}{0:F0}}" 
                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Grid>
-                                
+
                                 <!-- Landing -->
                                 <TextBlock Text="Landing" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,15,0,5"/>
                                 <TextBlock Text="Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
@@ -560,14 +572,14 @@
                                     <TextBlock Grid.Column="1" Text="{Binding ElementName=LandingDurationSlider, Path=Value, StringFormat={}{0:F0}}" 
                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Grid>
-                                
+
                             </StackPanel>
                         </Expander>
-                        
+
                         <!-- Incoming Damage Effects -->
                         <Expander Header="💥 Incoming Damage Effects" FontWeight="Bold" FontSize="13" Margin="0,5,0,5">
                             <StackPanel Margin="15,10,0,10">
-                                
+
                                 <!-- Laser Damage -->
                                 <TextBlock Text="Laser Damage (Trace)" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,5,0,5"/>
                                 <TextBlock Text="Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
@@ -624,7 +636,7 @@
                                         </Grid>
                                     </StackPanel>
                                 </Grid>
-                                
+
                                 <!-- Ballistic Damage -->
                                 <TextBlock Text="Ballistic Damage (Autocannons)" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,15,0,5"/>
                                 <TextBlock Text="Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
@@ -670,7 +682,7 @@
                                         </Grid>
                                     </StackPanel>
                                 </Grid>
-                                
+
                                 <!-- Missile Damage -->
                                 <TextBlock Text="Missile Damage" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,15,0,5"/>
                                 <TextBlock Text="Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
@@ -716,7 +728,7 @@
                                         </Grid>
                                     </StackPanel>
                                 </Grid>
-                                
+
                                 <!-- Melee Damage -->
                                 <TextBlock Text="Melee Damage" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,15,0,5"/>
                                 <TextBlock Text="Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
@@ -762,7 +774,7 @@
                                         </Grid>
                                     </StackPanel>
                                 </Grid>
-                                
+
                                 <!-- Explosion Damage -->
                                 <TextBlock Text="Explosion Damage - Impact Effect" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,15,0,5"/>
                                 <TextBlock Text="Impact Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
@@ -819,7 +831,7 @@
                                         </Grid>
                                     </StackPanel>
                                 </Grid>
-                                
+
                                 <TextBlock Text="Explosion Damage - Rumble Effect" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="0,15,0,5"/>
                                 <TextBlock Text="Rumble Duration (ms):" FontSize="11" Margin="0,3,0,0"/>
                                 <Grid Margin="0,2,0,8">
@@ -886,29 +898,35 @@
                                         </Grid>
                                     </StackPanel>
                                 </Grid>
-                                
+
                             </StackPanel>
                         </Expander>
-                        
+
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
-            
+
             <!-- About Tab -->
             <TabItem Header="About" FontSize="14">
+                <TabItem.Background>
+                    <RadialGradientBrush>
+                        <GradientStop Color="#FF3D6182" Offset="1"/>
+                        <GradientStop Color="#FF3D6182" Offset="0"/>
+                    </RadialGradientBrush>
+                </TabItem.Background>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="10">
                         <TextBlock Text="MechFFB v0.1.0 Alpha" FontWeight="Bold" FontSize="16"/>
                         <TextBlock Text="Real-time force feedback for MechWarrior 5: Mercenaries" 
                                   Margin="0,5,0,15" Opacity="0.8"/>
-                        
+
                         <TextBlock Text="Based on MechShaker architecture by sicsix" 
                                   FontWeight="Bold" Margin="0,10,0,5"/>
                         <TextBlock Text="• Reads same memory-mapped file as MechShaker" 
                                   Opacity="0.8" Margin="10,0,0,0"/>
                         <TextBlock Text="• Can run alongside MechShaker for ultimate immersion" 
                                   Opacity="0.8" Margin="10,5,0,0"/>
-                        
+
                         <TextBlock Text="Requirements:" FontWeight="Bold" Margin="0,15,0,5"/>
                         <TextBlock Text="• MechShakerRelay mod installed in MW5" 
                                   Opacity="0.8" Margin="10,0,0,0"/>
@@ -916,26 +934,32 @@
                                   Opacity="0.8" Margin="10,5,0,0"/>
                         <TextBlock Text="• DirectInput force feedback joystick" 
                                   Opacity="0.8" Margin="10,5,0,0"/>
-                        
+
                         <TextBlock Text="License: GPL-3.0" 
                                   FontWeight="Bold" Margin="0,15,0,0"/>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
-            
+
             <!-- Debug Tab -->
             <TabItem Header="Debug" FontSize="14">
+                <TabItem.Background>
+                    <RadialGradientBrush>
+                        <GradientStop Color="#FF3D6182" Offset="1"/>
+                        <GradientStop Color="#FF3D6182" Offset="0"/>
+                    </RadialGradientBrush>
+                </TabItem.Background>
                 <Grid Margin="10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    
+
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
                         <TextBlock Text="Debug Log" FontWeight="Bold" FontSize="16" VerticalAlignment="Center"/>
                         <Button Content="Clear Log" Click="ClearLog_Click" Margin="20,0,0,0" Padding="10,5"/>
                     </StackPanel>
-                    
+
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                         <TextBox x:Name="DebugLogTextBox" 
                                 TextWrapping="Wrap" 
@@ -950,7 +974,7 @@
                 </Grid>
             </TabItem>
         </TabControl>
-        
+
         <!-- Status Bar -->
         <Border Grid.Row="3" Background="{StaticResource PrimaryBrush}" 
                 BorderBrush="{StaticResource SecondaryBrush}" BorderThickness="1" 
@@ -961,34 +985,34 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                
+
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
                     <Ellipse x:Name="TelemetryStatusIndicator" Width="12" Height="12" 
                             Fill="Red" Margin="0,0,5,0"/>
                     <TextBlock x:Name="TelemetryStatusText" Text="Not Connected to MW5"/>
                 </StackPanel>
-                
+
                 <TextBlock Grid.Column="1" x:Name="StatusText" 
                           Text="Ready" HorizontalAlignment="Center"/>
-                
+
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
                     <TextBlock Text="Events: "/>
                     <TextBlock x:Name="EventCountText" Text="0" FontWeight="Bold"/>
                 </StackPanel>
             </Grid>
         </Border>
-        
+
         <!-- Control Buttons -->
         <Grid Grid.Row="4" Margin="0,10,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
-            
+
             <Button x:Name="StartButton" Grid.Column="0" Content="START" 
                    Click="Start_Click" Height="40" FontSize="16" FontWeight="Bold"
                    Background="{StaticResource AccentBrush}"/>
-            
+
             <Button x:Name="StopButton" Grid.Column="1" Content="STOP" 
                    Click="Stop_Click" Height="40" FontSize="16" FontWeight="Bold"
                    IsEnabled="False"/>
