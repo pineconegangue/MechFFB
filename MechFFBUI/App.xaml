@@ -7,7 +7,7 @@
         <SolidColorBrush x:Key="PrimaryBrush" Color="#2E3A47"/>
         <SolidColorBrush x:Key="SecondaryBrush" Color="#3D5A80"/>
         <SolidColorBrush x:Key="AccentBrush" Color="#EE6C4D"/>
-        <SolidColorBrush x:Key="TextBrush" Color="#E0FBFC"/>
+        <SolidColorBrush x:Key="TextBrush" Color="#97B4C2"/>
         <SolidColorBrush x:Key="BackgroundBrush" Color="#1A1A1A"/>
         
         <!-- Button Style -->
