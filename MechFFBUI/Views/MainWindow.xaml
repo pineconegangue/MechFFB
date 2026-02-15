@@ -63,6 +63,12 @@
             
             <!-- Simple Mode Tab -->
             <TabItem Header="Settings" FontSize="14">
+                <TabItem.Background>
+                    <RadialGradientBrush>
+                        <GradientStop Color="#FF3D6182" Offset="1"/>
+                        <GradientStop Color="#FF3D6182" Offset="0"/>
+                    </RadialGradientBrush>
+                </TabItem.Background>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="10">
                         <TextBlock Text="Master Intensity" FontWeight="Bold" FontSize="14" Foreground="{StaticResource AccentBrush}"/>
@@ -292,6 +298,12 @@
             
             <!-- Advanced Mode Tab -->
             <TabItem Header="Advanced Mode" FontSize="14">
+                <TabItem.Background>
+                    <RadialGradientBrush>
+                        <GradientStop Color="#FF3D6182" Offset="1"/>
+                        <GradientStop Color="#FF3D6182" Offset="0"/>
+                    </RadialGradientBrush>
+                </TabItem.Background>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="10">
                         <TextBlock Text="Advanced Configuration" FontWeight="Bold" FontSize="16" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,10"/>
@@ -896,6 +908,12 @@
             
             <!-- About Tab -->
             <TabItem Header="About" FontSize="14">
+                <TabItem.Background>
+                    <RadialGradientBrush>
+                        <GradientStop Color="#FF3D6182" Offset="1"/>
+                        <GradientStop Color="#FF3D6182" Offset="0"/>
+                    </RadialGradientBrush>
+                </TabItem.Background>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="10">
                         <TextBlock Text="MechFFB v0.1.0 Alpha" FontWeight="Bold" FontSize="16"/>
@@ -925,6 +943,12 @@
             
             <!-- Debug Tab -->
             <TabItem Header="Debug" FontSize="14">
+                <TabItem.Background>
+                    <RadialGradientBrush>
+                        <GradientStop Color="#FF3D6182" Offset="1"/>
+                        <GradientStop Color="#FF3D6182" Offset="0"/>
+                    </RadialGradientBrush>
+                </TabItem.Background>
                 <Grid Margin="10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
