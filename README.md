@@ -15,7 +15,7 @@ Force feedback system for MechWarrior 5 using SDL2.
 
 **YOU WILL NEED THE MECHSHAKER MOD FOR THIS TO WORK** - https://www.nexusmods.com/mechwarrior5mercenaries/mods/1029
 
-### Setup:
+### Setup (Skip steps 1 and 2 if downloading release version):
 
 1. Build solution 
 2. **SDL2.dll** - I have added this to this repo, move it to same folder as MechFFB.exe after compiling
