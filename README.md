@@ -49,7 +49,7 @@ Force feedback system for MechWarrior 5 using DirectInput.
 ## How it works (foundation built upon MechShaker)
 - MechShakerRelay, a blueprint mod for the game, gathers on-tick data and listens for a variety of in game events, packages up necessary details, and calls a parameterised OnTelemetry event that performs no immediate actions
 - MechShakerBridge, a C++ plugin, is injected into the game using one of two methods.
-- If using MechWarriorVR, as a UEVR plugin - https://github.com/sicsix/MW5-UEVR-Plugins
-- Otherwise, as a plugin for UnrealModLoader
+   - If using MechWarriorVR, as a UEVR plugin - https://github.com/sicsix/MW5-UEVR-Plugins
+   - Otherwise, as a plugin for UnrealModLoader
 - MechShakerBridge, when using the UEVR plugin, hooks directly into the OnTelemetry blueprint event. It then writes this telemetry data out to a memory mapped file.
 - MechFFB reads this memory mapped file and converts in game events into force feedback output
