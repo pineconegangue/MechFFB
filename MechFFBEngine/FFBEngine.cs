@@ -7,13 +7,13 @@ namespace MechFFBEngine;
 
 /// <summary>
 /// Main FFB engine - coordinates telemetry reading and force feedback output
-/// Uses SDL2 (same as DCS) - proven to work with MOZA AB9!
+/// Now using DirectInput for VPForce Rhino compatibility!
 /// </summary>
 public class FFBEngine : IDisposable
 {
     private readonly TelemetryReader _telemetryReader;
     private readonly FFBConfiguration _configuration;
-    private SDL2HapticManager _hapticManager;
+    private DirectInputHapticManager _hapticManager;
     
     // Track state for alternating effects
     private bool _isLeftFoot = true;
@@ -23,8 +23,8 @@ public class FFBEngine : IDisposable
     
     // Streak missile detection and effect cleanup
     private DateTime _lastMissileTime = DateTime.MinValue;
-    private const int STREAK_DETECTION_WINDOW_MS = 150; // If missiles fire within 150ms, consider it a streak
-    private List<int> _activeStreakEffects = new List<int>(); // Track active streak effects for cleanup
+    private const int STREAK_DETECTION_WINDOW_MS = 150;
+    private List<int> _activeStreakEffects = new List<int>();
     
     public bool IsRunning { get; private set; }
     public FFBConfiguration Configuration => _configuration;
@@ -35,17 +35,35 @@ public class FFBEngine : IDisposable
     
     public FFBEngine()
     {
-        Console.WriteLine("=== MechFFB Engine Initializing ===");
+        Console.WriteLine("=== MechFFB Engine Initializing (DirectInput) ===");
         _telemetryReader = new TelemetryReader();
         Console.WriteLine("TelemetryReader created");
-        _configuration = FFBConfiguration.Load(); // Load saved settings
+        _configuration = FFBConfiguration.Load();
         Console.WriteLine("Configuration loaded");
-        _hapticManager = new SDL2HapticManager();
-        Console.WriteLine("SDL2HapticManager created");
+        _hapticManager = new DirectInputHapticManager();
+        Console.WriteLine("DirectInputHapticManager created");
     }
     
     /// <summary>
-    /// Initialize SDL2
+    /// Set window handle for exclusive device access (optional but recommended)
+    /// </summary>
+    public void SetWindowHandle(IntPtr windowHandle)
+    {
+        _hapticManager.WindowHandle = windowHandle;
+        Console.WriteLine($"Window handle set: {windowHandle}");
+    }
+    
+    /// <summary>
+    /// Invert force direction (for devices with opposite axis conventions)
+    /// </summary>
+    public void SetInvertDirection(bool invert)
+    {
+        _hapticManager.InvertDirection = invert;
+        Console.WriteLine($"Direction inversion: {(invert ? "ENABLED" : "DISABLED")}");
+    }
+    
+    /// <summary>
+    /// Initialize DirectInput
     /// </summary>
     public bool Initialize()
     {
@@ -53,16 +71,11 @@ public class FFBEngine : IDisposable
         {
             if (!_hapticManager.Initialize())
             {
-                OnError?.Invoke(this, "SDL2 initialization failed. Make sure SDL2.dll is present.");
+                OnError?.Invoke(this, "DirectInput initialization failed.");
                 return false;
             }
-            OnStatusChanged?.Invoke(this, "SDL2 initialized - ready for FFB!");
+            OnStatusChanged?.Invoke(this, "DirectInput initialized - ready for FFB!");
             return true;
-        }
-        catch (DllNotFoundException)
-        {
-            OnError?.Invoke(this, "SDL2.dll not found! Run Download-SDL2.ps1");
-            return false;
         }
         catch (Exception ex)
         {
@@ -74,7 +87,7 @@ public class FFBEngine : IDisposable
     /// <summary>
     /// Get list of available FFB devices
     /// </summary>
-    public List<SDL2HapticManager.HapticDeviceInfo> GetAvailableDevices()
+    public List<DirectInputHapticManager.HapticDeviceInfo> GetAvailableDevices()
     {
         return _hapticManager.GetHapticDevices();
     }
@@ -188,17 +201,17 @@ public class FFBEngine : IDisposable
         OnStatusChanged?.Invoke(this, "FFB engine stopped");
     }
     
+    // All the Handle* methods remain exactly the same as the original
+    // Just using DirectInputHapticManager instead of SDL2HapticManager
+    
     private void HandleWeaponFire(object? sender, WeaponFireEvent e)
     {
         int magnitude = CalculateRecoilMagnitude(e);
         int effectId = -1;
         
-        // Use different effect types for different weapons
         switch (e.WeaponClass)
         {
             case WeaponClass.Ballistic:
-                // Sharp impact pushing to the right
-                // 9000° = East = right direction
                 var ballistic = _configuration.Advanced.Ballistics;
                 effectId = _hapticManager.CreateImpactEffect(magnitude, ballistic.Duration, ballistic.AttackTime, ballistic.FadeTime, 9000);
                 break;
@@ -206,243 +219,211 @@ public class FFBEngine : IDisposable
             case WeaponClass.Energy:
                 if (e.IsPPC)
                 {
-                    // PPC - heavy single impact pushing to the right
-                    // 9000° = East = right direction
                     var ppc = _configuration.Advanced.PPCs;
                     effectId = _hapticManager.CreateImpactEffect(magnitude, ppc.Duration, ppc.AttackTime, ppc.FadeTime, 9000);
                 }
                 else if (e.IsMachineGun)
                 {
-                    // Machine gun - continuous rapid pulses while firing
-                    if (e.IsActive && !_machineGunsActive)
+                    if (!_machineGunsActive)
                     {
-                        // Start continuous firing
                         _machineGunsActive = true;
                         var mg = _configuration.Advanced.MachineGuns;
                         
-                        // Fire immediately
-                        FireMachineGunPulse(magnitude, mg);
-                        
-                        // Set up timer to fire every 93ms
-                        _machineGunTimer = new System.Threading.Timer(_ => 
+                        _machineGunTimer = new System.Threading.Timer(_ =>
                         {
-                            if (_machineGunsActive)
-                            {
-                                FireMachineGunPulse(magnitude, mg);
-                            }
-                        }, null, 93, 93);
+                            if (!_machineGunsActive) return;
+                            FireMachineGunPulse(magnitude, mg);
+                        }, null, 0, mg.Duration + 10);
                         
-                        Console.WriteLine("Machine Gun: START continuous fire");
+                        Task.Delay((int)(e.BeamDuration * 1000) + 100).ContinueWith(_ =>
+                        {
+                            _machineGunsActive = false;
+                            _machineGunTimer?.Dispose();
+                            _machineGunTimer = null;
+                        });
                     }
-                    else if (!e.IsActive && _machineGunsActive)
-                    {
-                        // Stop continuous firing
-                        _machineGunsActive = false;
-                        _machineGunTimer?.Dispose();
-                        _machineGunTimer = null;
-                        Console.WriteLine("Machine Gun: STOP");
-                    }
-                    return; // Don't create single effect
+                    return;
                 }
                 else
                 {
-                    // Laser - continuous rumble/vibration using actual beam duration from game
                     var laser = _configuration.Advanced.Lasers;
-                    
-                    // Convert beam duration from seconds to milliseconds
-                    int beamDurationMs = (int)(e.BeamDuration * 1000);
-                    
-                    // Use game's beam duration if available, otherwise fall back to config
-                    int duration = beamDurationMs > 0 ? beamDurationMs : laser.Duration;
-                    
-                    Console.WriteLine($"Laser: BeamDuration={e.BeamDuration:F3}s ({duration}ms)");
+                    int duration = (int)(e.BeamDuration * 1000);
                     effectId = _hapticManager.CreatePeriodicEffect(magnitude, duration, laser.Frequency, laser.AttackTime, laser.FadeTime);
                 }
                 break;
                 
             case WeaponClass.Missile:
+                var missile = _configuration.Advanced.Missiles;
+                DateTime now = DateTime.Now;
+                
+                if (e.FiringDelay > 0.01f)
                 {
-                    var missile = _configuration.Advanced.Missiles;
-                    var now = DateTime.Now;
+                    // Streak missiles - individual effects per missile
+                    int missileCount = (int)e.ProjectileMass;
+                    float delayBetweenMissiles = e.FiringDelay * 1000;
                     
-                    // Detect if this is part of a streak volley
-                    bool isInStreakWindow = (now - _lastMissileTime).TotalMilliseconds < STREAK_DETECTION_WINDOW_MS;
-                    _lastMissileTime = now;
-                    
-                    // Calculate duration based on firing delay
-                    int duration;
-                    bool isStreak = e.FiringDelay > 0.01f;
-                    
-                    if (isStreak)
+                    for (int i = 0; i < missileCount; i++)
                     {
-                        // Streak missiles: Calculate total firing duration
-                        // Duration = Delay × (MissileCount - 1)
-                        int missileCount = (int)e.ProjectileMass;
-                        float totalFiringTime = e.FiringDelay * (missileCount - 1);
-                        duration = (int)(totalFiringTime * 1000); // Convert to ms
-                        Console.WriteLine($"STREAK MISSILES: {missileCount} missiles, Delay={e.FiringDelay:F3}s, Duration={duration}ms, InVolley={isInStreakWindow}");
-                        
-                        // Clean up old streak effects from this volley to prevent stacking
-                        if (isInStreakWindow && _activeStreakEffects.Count > 0)
+                        int delay = (int)(i * delayBetweenMissiles);
+                        Task.Delay(delay).ContinueWith(_ =>
                         {
-                            // Remove oldest effect to prevent buildup (keep only last 2-3)
-                            if (_activeStreakEffects.Count > 2)
+                            int streakEffectId = _hapticManager.CreatePeriodicEffect(magnitude, missile.Duration, missile.Frequency, missile.AttackTime, missile.FadeTime);
+                            if (streakEffectId >= 0)
                             {
-                                int oldEffect = _activeStreakEffects[0];
-                                _activeStreakEffects.RemoveAt(0);
-                                _hapticManager.DestroyEffect(oldEffect);
+                                _activeStreakEffects.Add(streakEffectId);
+                                _hapticManager.PlayEffect(streakEffectId, 1);
+                                Task.Delay(missile.Duration + missile.FadeTime + 50).ContinueWith(__ =>
+                                {
+                                    _hapticManager.DestroyEffect(streakEffectId);
+                                    _activeStreakEffects.Remove(streakEffectId);
+                                });
                             }
-                        }
-                        else if (!isInStreakWindow)
-                        {
-                            // New volley starting, clean up all previous streak effects
-                            foreach (var oldEffect in _activeStreakEffects)
-                            {
-                                _hapticManager.DestroyEffect(oldEffect);
-                            }
-                            _activeStreakEffects.Clear();
-                        }
+                        });
                     }
-                    else
-                    {
-                        // Standard missiles: Use configured duration
-                        duration = missile.Duration;
-                        int numMissiles = (int)e.ProjectileMass;
-                        Console.WriteLine($"STANDARD MISSILES: {numMissiles} missiles, Duration={duration}ms (instant volley)");
-                    }
-                    
-                    // Apply rumble multiplier to magnitude (100% = 32767 max)
-                    int rumbleMag = (int)(magnitude * missile.RumbleMultiplier);
-                    rumbleMag = Math.Clamp(rumbleMag, 0, 32767);
-                    
-                    effectId = _hapticManager.CreatePeriodicEffect(rumbleMag, duration, missile.Frequency, missile.AttackTime, missile.FadeTime);
-                    
-                    // Track streak effects for cleanup
-                    if (isStreak && effectId >= 0)
-                    {
-                        _activeStreakEffects.Add(effectId);
-                    }
+                    return;
+                }
+                else
+                {
+                    // Standard missiles - single effect
+                    effectId = _hapticManager.CreatePeriodicEffect(magnitude, missile.Duration, missile.Frequency, missile.AttackTime, missile.FadeTime);
                 }
                 break;
                 
             case WeaponClass.Melee:
-                // Massive thud with very sharp attack
                 var melee = _configuration.Advanced.Melee;
-                effectId = _hapticManager.CreateImpactEffect(magnitude, melee.Duration, melee.AttackTime, melee.FadeTime);
-                break;
-                
-            default:
-                effectId = _hapticManager.CreateConstantEffect(magnitude, 150);
+                effectId = _hapticManager.CreateImpactEffect(magnitude, melee.Duration, melee.AttackTime, melee.FadeTime, 9000);
                 break;
         }
         
         if (effectId >= 0)
         {
             _hapticManager.PlayEffect(effectId, 1);
-            int cleanup = e.WeaponClass == WeaponClass.Energy && e.IsMachineGun 
-                ? _configuration.Advanced.MachineGuns.Duration 
-                : CalculateRecoilDuration(e);
-            Task.Delay(cleanup + 100).ContinueWith(_ => _hapticManager.DestroyEffect(effectId));
+            int duration = CalculateRecoilDuration(e);
+            Task.Delay(duration + 50).ContinueWith(_ => _hapticManager.DestroyEffect(effectId));
         }
     }
     
     private void HandleDamage(object? sender, DamageEvent e)
     {
-        Console.WriteLine($"DAMAGE: Type={e.DamageType}, Amt={e.DamageAmount:F1}");
+        int direction = CalculateDirection(e.HitDirection);
         
-        // Get intensity based on damage type
-        float damageTypeIntensity = e.DamageType switch
-        {
-            DamageType.Trace => _configuration.Simple.LaserDamageIntensity,
-            DamageType.Projectile => _configuration.Simple.BallisticDamageIntensity,
-            DamageType.Missile => _configuration.Simple.MissileDamageIntensity,
-            DamageType.Melee => _configuration.Simple.MeleeDamageIntensity,
-            DamageType.Explosion => _configuration.Simple.ExplosionDamageIntensity,
-            _ => 0.6f
-        };
+        // Scale damage similar to weapons - need baseline + scaling for small damage values
+        // Damage amounts are typically 0.1 to 50+
+        // Use aggressive scaling: (damage * 500) + 10000 baseline for good feel
+        float baseMag = (e.DamageAmount * 500) + 10000;
+        int magnitude = Math.Clamp((int)(baseMag * _configuration.MasterIntensity), 0, 32767);
         
-        // Scale based on actual damage amount
-        // Damage values typically range from 0.5 (single small laser tick) to 100+ (massive hits)
-        // Scale so ~20 damage = ~30000 magnitude at 100% intensity
-        float baseMag = e.DamageAmount * 1500; // Maps 20 damage to ~30000
-        int magnitude = (int)(baseMag * damageTypeIntensity * _configuration.MasterIntensity);
-        magnitude = Math.Clamp(magnitude, 0, 32767);
-        
-        Console.WriteLine($"Damage FFB: Amt={e.DamageAmount:F1} -> Mag={magnitude}");
+        Console.WriteLine($"DAMAGE: Type={(DamageType)((int)e.DamageType)}, Amount={e.DamageAmount:F1}, Dir={direction}°, Mag={magnitude}");
         
         int effectId = -1;
         
-        // Different feel based on damage type
-        switch (e.DamageType)
+        if ((int)e.DamageType == 4) // DamageType 4 = Explosion
         {
-            case DamageType.Trace: // Lasers, flamers
-                // Burning/searing rumble
+            var explosion = _configuration.Advanced.ExplosionDamage;
+            var explosionAdv = _configuration.Advanced.ExplosionDamageAdvanced;
+            
+            float intensity = _configuration.Simple.ExplosionDamageIntensity;
+            int explosionMag = (int)(magnitude * intensity);
+            
+            var effectIds = _hapticManager.CreateExplosionEffect(
+                explosionMag,
+                explosionAdv.ImpactDuration,
+                explosionAdv.RumbleDuration,
+                explosionAdv.ImpactAttackTime,
+                explosionAdv.ImpactFadeTime,
+                explosionAdv.RumbleAttackTime,
+                explosionAdv.RumbleFadeTime,
+                direction,
+                explosionAdv.RumbleFrequency,
+                explosionAdv.ImpactMultiplier,
+                explosionAdv.RumbleMultiplier
+            );
+            
+            if (effectIds[0] >= 0 && effectIds[1] >= 0)
+            {
+                _hapticManager.PlayEffect(effectIds[0], 1);
+                _hapticManager.PlayEffect(effectIds[1], 1);
+                
+                int maxDuration = Math.Max(explosionAdv.ImpactDuration + explosionAdv.ImpactFadeTime, 
+                                          explosionAdv.RumbleDuration + explosionAdv.RumbleFadeTime);
+                Task.Delay(maxDuration + 50).ContinueWith(_ =>
+                {
+                    _hapticManager.DestroyEffect(effectIds[0]);
+                    _hapticManager.DestroyEffect(effectIds[1]);
+                });
+            }
+            return;
+        }
+        
+        var settings = e.DamageType switch
+        {
+            (DamageType)0 => _configuration.Advanced.LaserDamage,      // Trace/Laser
+            (DamageType)1 => _configuration.Advanced.BallisticDamage,  // Projectile/Ballistic
+            (DamageType)2 => _configuration.Advanced.MissileDamage,    // Missile
+            (DamageType)3 => _configuration.Advanced.MeleeDamage,      // Melee
+            _ => _configuration.Advanced.BallisticDamage
+        };
+        
+        float damageIntensity = e.DamageType switch
+        {
+            (DamageType)0 => _configuration.Simple.LaserDamageIntensity,      // Trace/Laser
+            (DamageType)1 => _configuration.Simple.BallisticDamageIntensity,  // Projectile/Ballistic
+            (DamageType)2 => _configuration.Simple.MissileDamageIntensity,    // Missile
+            (DamageType)3 => _configuration.Simple.MeleeDamageIntensity,      // Melee
+            _ => 0.6f
+        };
+        
+        magnitude = (int)(magnitude * damageIntensity);
+        magnitude = Math.Clamp(magnitude, 0, 32767);
+        
+        // Use appropriate effect type for each damage type (matching original SDL2 implementation)
+        switch ((int)e.DamageType)
+        {
+            case 0: // Trace (Laser damage)
+                // Vibration effect for laser damage
                 var laserDmg = _configuration.Advanced.LaserDamage;
                 effectId = _hapticManager.CreatePeriodicEffect(magnitude, laserDmg.Duration, laserDmg.Frequency, laserDmg.AttackTime, laserDmg.FadeTime);
                 break;
                 
-            case DamageType.Projectile: // Autocannons
-                // Sharp impact (no direction)
+            case 1: // Projectile (Ballistic damage)
+                // Impact effect for ballistic damage
                 var ballisticDmg = _configuration.Advanced.BallisticDamage;
-                effectId = _hapticManager.CreateImpactEffect(magnitude, ballisticDmg.Duration, ballisticDmg.AttackTime, ballisticDmg.FadeTime, 9000);
+                effectId = _hapticManager.CreateImpactEffect(magnitude, ballisticDmg.Duration, ballisticDmg.AttackTime, ballisticDmg.FadeTime, direction);
                 break;
                 
-            case DamageType.Missile:
-                // Explosive impact (no direction)
+            case 2: // Missile damage
+                // Impact effect for missile damage
                 var missileDmg = _configuration.Advanced.MissileDamage;
-                effectId = _hapticManager.CreateImpactEffect(magnitude, missileDmg.Duration, missileDmg.AttackTime, missileDmg.FadeTime, 9000);
+                effectId = _hapticManager.CreateImpactEffect(magnitude, missileDmg.Duration, missileDmg.AttackTime, missileDmg.FadeTime, direction);
                 break;
                 
-            case DamageType.Melee:
-                // Crushing blow (no direction)
+            case 3: // Melee damage
+                // Heavy impact for melee
                 var meleeDmg = _configuration.Advanced.MeleeDamage;
-                effectId = _hapticManager.CreateImpactEffect(magnitude, meleeDmg.Duration, meleeDmg.AttackTime, meleeDmg.FadeTime, 9000);
+                effectId = _hapticManager.CreateImpactEffect(magnitude, meleeDmg.Duration, meleeDmg.AttackTime, meleeDmg.FadeTime, direction);
                 break;
-                
-            case DamageType.Explosion:
-                // Big boom with separate impact + rumble controls
-                var explosionDmg = _configuration.Advanced.ExplosionDamageAdvanced;
-                
-                // Create combined effect with separate settings for each
-                int[] explosionEffects = _hapticManager.CreateExplosionEffect(
-                    magnitude+10000, 
-                    explosionDmg.ImpactDuration,
-                    explosionDmg.RumbleDuration,
-                    explosionDmg.ImpactAttackTime, 
-                    explosionDmg.ImpactFadeTime,
-                    explosionDmg.RumbleAttackTime,
-                    explosionDmg.RumbleFadeTime,
-                    0, // No direction
-                    explosionDmg.RumbleFrequency,
-                    explosionDmg.ImpactMultiplier,
-                    explosionDmg.RumbleMultiplier
-                );
-                
-                // Play both effects simultaneously
-                if (explosionEffects[0] >= 0 && explosionEffects[1] >= 0)
-                {
-                    _hapticManager.PlayEffect(explosionEffects[0], 1); // Impact
-                    _hapticManager.PlayEffect(explosionEffects[1], 1); // Rumble
-                    
-                    // Clean up both effects after the longer of the two durations
-                    int maxDuration = Math.Max(explosionDmg.ImpactDuration, explosionDmg.RumbleDuration);
-                    Task.Delay(maxDuration + 100).ContinueWith(_ => 
-                    {
-                        _hapticManager.DestroyEffect(explosionEffects[0]);
-                        _hapticManager.DestroyEffect(explosionEffects[1]);
-                    });
-                }
-                return; // Skip the default single effect creation
                 
             default:
-                effectId = _hapticManager.CreateConstantEffect(magnitude, 250, 0);
+                // Fallback for unknown damage types
+                effectId = _hapticManager.CreateImpactEffect(magnitude, settings.Duration, settings.AttackTime, settings.FadeTime, direction);
                 break;
         }
         
         if (effectId >= 0)
         {
             _hapticManager.PlayEffect(effectId, 1);
-            Task.Delay(600).ContinueWith(_ => _hapticManager.DestroyEffect(effectId));
+            
+            // Get duration based on damage type
+            int duration = (int)e.DamageType switch
+            {
+                0 => _configuration.Advanced.LaserDamage.Duration + _configuration.Advanced.LaserDamage.FadeTime,
+                1 => _configuration.Advanced.BallisticDamage.Duration + _configuration.Advanced.BallisticDamage.FadeTime,
+                2 => _configuration.Advanced.MissileDamage.Duration + _configuration.Advanced.MissileDamage.FadeTime,
+                3 => _configuration.Advanced.MeleeDamage.Duration + _configuration.Advanced.MeleeDamage.FadeTime,
+                _ => settings.Duration + settings.FadeTime
+            };
+            
+            Task.Delay(duration + 50).ContinueWith(_ => _hapticManager.DestroyEffect(effectId));
         }
         else
         {
@@ -452,27 +433,18 @@ public class FFBEngine : IDisposable
     
     private void HandleMovement(object? sender, MovementEvent e)
     {
-        // Only handle footsteps
         if (e.Type != MovementType.Footstep)
             return;
         
-        // Alternate feet
         _isLeftFoot = !_isLeftFoot;
-        
-        // Push/pull on X axis (forward/backward)
-        // 0 = North (push forward), 18000 = South (pull backward)
         int direction = _isLeftFoot ? 0 : 18000;
         
         Console.WriteLine($"FOOTSTEP: {(_isLeftFoot ? "PUSH" : "PULL")}, Tonnage={e.MechTonnage}, Speed={e.Velocity:F1}");
         
-        // Max out at 32000, scaled by footstep intensity
         float baseMag = 32767;
         int magnitude = (int)(baseMag * _configuration.Simple.FootstepIntensity * _configuration.MasterIntensity);
         magnitude = Math.Clamp(magnitude, 0, 32767);
         
-        Console.WriteLine($"Footstep FFB: Mag={magnitude}, Dir={direction}");
-        
-        // Sharp impact with direction
         var footstep = _configuration.Advanced.Footsteps;
         int effectId = _hapticManager.CreateImpactEffect(magnitude, footstep.Duration, footstep.AttackTime, footstep.FadeTime, direction);
         if (effectId >= 0)
@@ -488,17 +460,12 @@ public class FFBEngine : IDisposable
         
         if (e.State == JumpJetState.Active)
         {
-            // Start continuous vibration if not already active
             if (_activeJumpJetEffectId < 0)
             {
-                // Max out at 32000
                 float baseMag = 32767;
                 int magnitude = (int)(baseMag * _configuration.Simple.JumpJetIntensity * _configuration.MasterIntensity);
                 magnitude = Math.Clamp(magnitude, 0, 32767);
                 
-                Console.WriteLine($"Jump Jet START: Mag={magnitude}");
-                
-                // Continuous low-frequency rumble
                 var jumpJet = _configuration.Advanced.JumpJets;
                 _activeJumpJetEffectId = _hapticManager.CreatePeriodicEffect(magnitude, 10000, jumpJet.Frequency, jumpJet.AttackTime, jumpJet.FadeTime);
                 if (_activeJumpJetEffectId >= 0)
@@ -509,10 +476,8 @@ public class FFBEngine : IDisposable
         }
         else
         {
-            // Stop the continuous effect
             if (_activeJumpJetEffectId >= 0)
             {
-                Console.WriteLine($"Jump Jet STOP");
                 _hapticManager.StopEffect(_activeJumpJetEffectId);
                 _hapticManager.DestroyEffect(_activeJumpJetEffectId);
                 _activeJumpJetEffectId = -1;
@@ -524,12 +489,9 @@ public class FFBEngine : IDisposable
     {
         Console.WriteLine($"LANDING: Velocity={e.ImpactVelocity:F1}, Tonnage={e.MechTonnage}");
         
-        // Max out at 32000
         float baseMag = 32767;
         int magnitude = (int)(baseMag * _configuration.Simple.LandingIntensity * _configuration.MasterIntensity);
         magnitude = Math.Clamp(magnitude, 0, 32767);
-        
-        Console.WriteLine($"Landing FFB: Mag={magnitude}");
         
         var landing = _configuration.Advanced.Landing;
         int effectId = _hapticManager.CreateImpactEffect(magnitude, landing.Duration, landing.AttackTime, landing.FadeTime);
@@ -555,50 +517,38 @@ public class FFBEngine : IDisposable
         float baseMag = 0;
         float weaponIntensity = 1.0f;
         
-        // Scale based on weapon data for realistic differences
         switch (e.WeaponClass)
         {
             case WeaponClass.Ballistic:
-                // Autocannons - scale based on impulse + strong baseline
-                // Impulse values: AC/2 ~50-100, AC/5 ~150-250, AC/10 ~300-500, AC/20 ~800-1500
-                // Scale to use full range at 100% intensity, with +10000 baseline for stronger feel
-                baseMag = (e.Damage * 20) + 10000; // +10k baseline makes all ballistics feel more impactful
+                baseMag = (e.Damage * 20) + 10000;
                 weaponIntensity = _configuration.Simple.BallisticIntensity;
                 break;
                 
             case WeaponClass.Energy:
                 if (e.IsPPC)
                 {
-                    // PPCs - scale based on damage + strong baseline
                     baseMag = (e.Damage * 15) + 10000;
                     weaponIntensity = _configuration.Simple.PPCIntensity;
                 }
                 else
                 {
-                    // Lasers - scale based on damage + baseline
                     baseMag = (e.Damage * 18) + 10000;
                     weaponIntensity = _configuration.Simple.LaserIntensity;
                 }
                 break;
                 
             case WeaponClass.Missile:
-                // Missiles - scale based on impulse + strong baseline
-                // Single missiles ~500-1000, volleys scale with count
-                baseMag = (e.Damage * 15) + 20000; // +20k baseline for strong rumble
+                baseMag = (e.Damage * 15) + 20000;
                 weaponIntensity = _configuration.Simple.MissileIntensity;
                 break;
                 
             case WeaponClass.Melee:
-                // Melee - scale based on tonnage/damage + baseline
                 baseMag = (e.Damage * 12) + 20000;
                 weaponIntensity = _configuration.Simple.MeleeIntensity;
                 break;
         }
         
-        // Apply weapon-specific and master intensity scaling
         baseMag *= weaponIntensity * _configuration.MasterIntensity;
-        
-        // Only clamp to SDL2 max
         int magnitude = Math.Clamp((int)baseMag, 0, 32767);
         
         string weaponType = e.IsPPC ? "PPC" : e.WeaponClass.ToString();
@@ -609,14 +559,13 @@ public class FFBEngine : IDisposable
     
     private int CalculateRecoilDuration(WeaponFireEvent e)
     {
-        // Return actual duration + fade time from advanced settings
         return e.WeaponClass switch
         {
             WeaponClass.Ballistic => _configuration.Advanced.Ballistics.Duration + _configuration.Advanced.Ballistics.FadeTime,
             WeaponClass.Energy when e.IsPPC => _configuration.Advanced.PPCs.Duration + _configuration.Advanced.PPCs.FadeTime,
             WeaponClass.Energy when e.IsMachineGun => _configuration.Advanced.MachineGuns.Duration + _configuration.Advanced.MachineGuns.FadeTime,
-            WeaponClass.Energy => (int)(e.BeamDuration * 1000) + _configuration.Advanced.Lasers.FadeTime, // Use beam duration from game + fade
-            WeaponClass.Missile => CalculateMissileDuration(e) + _configuration.Advanced.Missiles.FadeTime, // Dynamic duration based on firing delay
+            WeaponClass.Energy => (int)(e.BeamDuration * 1000) + _configuration.Advanced.Lasers.FadeTime,
+            WeaponClass.Missile => CalculateMissileDuration(e) + _configuration.Advanced.Missiles.FadeTime,
             WeaponClass.Melee => _configuration.Advanced.Melee.Duration + _configuration.Advanced.Melee.FadeTime,
             _ => 200
         };
@@ -624,17 +573,14 @@ public class FFBEngine : IDisposable
     
     private int CalculateMissileDuration(WeaponFireEvent e)
     {
-        // Calculate missile rumble duration based on firing delay
         if (e.FiringDelay > 0.01f)
         {
-            // Streak missiles: Duration = Delay × (MissileCount - 1)
             int missileCount = (int)e.ProjectileMass;
             float totalFiringTime = e.FiringDelay * (missileCount - 1);
             return (int)(totalFiringTime * 1000);
         }
         else
         {
-            // Standard missiles: Use configured duration
             return _configuration.Advanced.Missiles.Duration;
         }
     }

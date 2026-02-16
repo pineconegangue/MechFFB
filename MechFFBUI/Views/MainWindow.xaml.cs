@@ -37,6 +37,20 @@ public partial class MainWindow : Window
         InitializeFFBEngine();
         SetupUpdateTimer();
         SetupSaveTimer();
+        
+        // Set window handle after window is created
+        this.Loaded += (s, e) =>
+        {
+            if (_ffbEngine != null)
+            {
+                var windowInteropHelper = new System.Windows.Interop.WindowInteropHelper(this);
+                if (windowInteropHelper.Handle != IntPtr.Zero)
+                {
+                    _ffbEngine.SetWindowHandle(windowInteropHelper.Handle);
+                    Console.WriteLine("Window handle passed to FFB engine");
+                }
+            }
+        };
     }
     
     private void AppendLog(string text)
@@ -88,7 +102,7 @@ public partial class MainWindow : Window
             _ffbEngine.OnStatusChanged += (s, msg) => Dispatcher.Invoke(() => UpdateStatus(msg));
             _ffbEngine.OnError += (s, msg) => Dispatcher.Invoke(() => ShowError(msg));
             
-            // Initialize SDL2
+            // Initialize DirectInput
             if (_ffbEngine.Initialize())
             {
                 RefreshDeviceList();
@@ -96,7 +110,7 @@ public partial class MainWindow : Window
             }
             else
             {
-                ShowError("Failed to initialize SDL2 - check that SDL2.dll is present");
+                ShowError("Failed to initialize DirectInput");
             }
         }
         catch (Exception ex)
@@ -305,7 +319,7 @@ public partial class MainWindow : Window
         if (_ffbEngine == null || DeviceComboBox.SelectedItem == null)
             return;
         
-        var device = (SDL2HapticManager.HapticDeviceInfo)DeviceComboBox.SelectedItem;
+        var device = (DirectInputHapticManager.HapticDeviceInfo)DeviceComboBox.SelectedItem;
         
         try
         {
@@ -326,7 +340,20 @@ public partial class MainWindow : Window
             IsDeviceSelected = false;
         }
     }
-    
+
+    private void InvertDirection_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_ffbEngine == null)
+            return;
+
+        bool invert = InvertDirectionCheckBox.IsChecked ?? false;
+        _ffbEngine.SetInvertDirection(invert);
+
+        // Save to config
+        _ffbEngine.Configuration.InvertDirection = invert;
+        DebouncedSave();
+    }
+
     private void TestDevice_Click(object sender, RoutedEventArgs e)
     {
         if (_ffbEngine == null)
@@ -489,7 +516,10 @@ public partial class MainWindow : Window
         config.Advanced.ExplosionDamageAdvanced.RumbleMultiplier = (float)(ExplosionRumbleMultiplierSlider.Value / 100.0);
         config.Advanced.ExplosionDamageAdvanced.RumbleAttackTime = (int)ExplosionRumbleAttackSlider.Value;
         config.Advanced.ExplosionDamageAdvanced.RumbleFadeTime = (int)ExplosionRumbleFadeSlider.Value;
-        
+
+        InvertDirectionCheckBox.IsChecked = config.InvertDirection;
+        _ffbEngine?.SetInvertDirection(config.InvertDirection);
+
         // Debounced save - delays save by 500ms
         DebouncedSave();
     }
@@ -520,4 +550,6 @@ public partial class MainWindow : Window
         _ffbEngine?.Dispose();
         base.OnClosing(e);
     }
+
+    
 }

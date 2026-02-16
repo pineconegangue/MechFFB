@@ -40,19 +40,29 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="60.333"/>
+                        <ColumnDefinition Width="49.667"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
                     <ComboBox x:Name="DeviceComboBox" Grid.Column="0" 
                              DisplayMemberPath="Name"
-                             SelectionChanged="DeviceComboBox_SelectionChanged" BorderBrush="#FFACACAC"/>
+                             SelectionChanged="DeviceComboBox_SelectionChanged" BorderBrush="#FFACACAC" Margin="5,5,5,5"/>
 
                     <Button Grid.Column="1" Content="Refresh Devices" 
-                           Click="RefreshDevices_Click" Width="120"/>
+                           Click="RefreshDevices_Click" Width="120" Margin="5,5,5,5"/>
 
                     <Button Grid.Column="2" Content="Test Device" 
                            Click="TestDevice_Click" Width="100"
-                           IsEnabled="{Binding IsDeviceSelected}"/>
+                           IsEnabled="{Binding IsDeviceSelected}" Grid.ColumnSpan="2" Margin="5,5,5,5"/>
+                    <CheckBox x:Name="InvertDirectionCheckBox" 
+                             Content="Invert Axis" 
+                             Margin="5,-27,5,0"
+                             VerticalAlignment="Top"
+                             VerticalContentAlignment="Center"
+                             Checked="InvertDirection_Changed"
+                             Unchecked="InvertDirection_Changed"
+                             ToolTip="Check this if impacts push the wrong way (VPForce Rhino users may need this)" Grid.ColumnSpan="2" Grid.Column="2" IsManipulationEnabled="True"/>
                 </Grid>
             </StackPanel>
         </Border>

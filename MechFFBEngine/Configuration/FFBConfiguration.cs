@@ -29,6 +29,11 @@ public class FFBConfiguration
     public Guid? SelectedDeviceGuid { get; set; }
     
     /// <summary>
+    /// Invert force direction (for devices with opposite axis conventions like VPForce Rhino)
+    /// </summary>
+    public bool InvertDirection { get; set; } = false;
+    
+    /// <summary>
     /// Get the default configuration file path
     /// </summary>
     private static string GetConfigPath()
