@@ -144,9 +144,11 @@ public partial class MainWindow : Window
         LaserSlider.Value = config.Simple.LaserIntensity * 100;
         PPCSlider.Value = config.Simple.PPCIntensity * 100;
         MissileSlider.Value = config.Simple.MissileIntensity * 100;
+        MachineGunSlider.Value = config.Simple.MachineGunIntensity * 100;
         MeleeSlider.Value = config.Simple.MeleeIntensity * 100;
         LaserDamageSlider.Value = config.Simple.LaserDamageIntensity * 100;
         BallisticDamageSlider.Value = config.Simple.BallisticDamageIntensity * 100;
+        PPCDamageSlider.Value = config.Simple.PPCDamageIntensity * 100;
         MissileDamageSlider.Value = config.Simple.MissileDamageIntensity * 100;
         MeleeDamageSlider.Value = config.Simple.MeleeDamageIntensity * 100;
         ExplosionDamageSlider.Value = config.Simple.ExplosionDamageIntensity * 100;
@@ -158,7 +160,7 @@ public partial class MainWindow : Window
         BallisticDurationSlider.Value = config.Advanced.Ballistics.Duration;
         BallisticAttackSlider.Value = config.Advanced.Ballistics.AttackTime;
         BallisticFadeSlider.Value = config.Advanced.Ballistics.FadeTime;
-        LaserDurationSlider.Value = config.Advanced.Lasers.Duration;
+        // LaserDurationSlider removed - now uses F3 beam duration from game
         LaserFrequencySlider.Value = config.Advanced.Lasers.Frequency;
         LaserAttackSlider.Value = config.Advanced.Lasers.AttackTime;
         LaserFadeSlider.Value = config.Advanced.Lasers.FadeTime;
@@ -173,13 +175,16 @@ public partial class MainWindow : Window
         FootstepDurationSlider.Value = config.Advanced.Footsteps.Duration;
         JumpJetFrequencySlider.Value = config.Advanced.JumpJets.Frequency;
         LandingDurationSlider.Value = config.Advanced.Landing.Duration;
-        LaserDmgDurationSlider.Value = config.Advanced.LaserDamage.Duration;
+        // LaserDmgDurationSlider removed - now uses tier detection (600/760/890ms)
         LaserDmgFrequencySlider.Value = config.Advanced.LaserDamage.Frequency;
         LaserDmgAttackSlider.Value = config.Advanced.LaserDamage.AttackTime;
         LaserDmgFadeSlider.Value = config.Advanced.LaserDamage.FadeTime;
         BallisticDmgDurationSlider.Value = config.Advanced.BallisticDamage.Duration;
         BallisticDmgAttackSlider.Value = config.Advanced.BallisticDamage.AttackTime;
         BallisticDmgFadeSlider.Value = config.Advanced.BallisticDamage.FadeTime;
+        PPCDmgDurationSlider.Value = config.Advanced.PPCDamage.Duration;
+        PPCDmgAttackSlider.Value = config.Advanced.PPCDamage.AttackTime;
+        PPCDmgFadeSlider.Value = config.Advanced.PPCDamage.FadeTime;
         MissileDmgDurationSlider.Value = config.Advanced.MissileDamage.Duration;
         MissileDmgAttackSlider.Value = config.Advanced.MissileDamage.AttackTime;
         MissileDmgFadeSlider.Value = config.Advanced.MissileDamage.FadeTime;
@@ -426,11 +431,13 @@ public partial class MainWindow : Window
         config.Simple.LaserIntensity = (float)(LaserSlider.Value / 100.0);
         config.Simple.PPCIntensity = (float)(PPCSlider.Value / 100.0);
         config.Simple.MissileIntensity = (float)(MissileSlider.Value / 100.0);
+        config.Simple.MachineGunIntensity = (float)(MachineGunSlider.Value / 100.0);
         config.Simple.MeleeIntensity = (float)(MeleeSlider.Value / 100.0);
         
         // Incoming damage by type
         config.Simple.LaserDamageIntensity = (float)(LaserDamageSlider.Value / 100.0);
         config.Simple.BallisticDamageIntensity = (float)(BallisticDamageSlider.Value / 100.0);
+        config.Simple.PPCDamageIntensity = (float)(PPCDamageSlider.Value / 100.0);
         config.Simple.MissileDamageIntensity = (float)(MissileDamageSlider.Value / 100.0);
         config.Simple.MeleeDamageIntensity = (float)(MeleeDamageSlider.Value / 100.0);
         config.Simple.ExplosionDamageIntensity = (float)(ExplosionDamageSlider.Value / 100.0);
@@ -459,8 +466,7 @@ public partial class MainWindow : Window
         config.Advanced.Ballistics.AttackTime = (int)BallisticAttackSlider.Value;
         config.Advanced.Ballistics.FadeTime = (int)BallisticFadeSlider.Value;
         
-        // Lasers
-        config.Advanced.Lasers.Duration = (int)LaserDurationSlider.Value;
+        // Lasers (Duration removed - now uses F3 beam duration from game)
         config.Advanced.Lasers.Frequency = (int)LaserFrequencySlider.Value;
         config.Advanced.Lasers.AttackTime = (int)LaserAttackSlider.Value;
         config.Advanced.Lasers.FadeTime = (int)LaserFadeSlider.Value;
@@ -488,8 +494,7 @@ public partial class MainWindow : Window
         // Landing
         config.Advanced.Landing.Duration = (int)LandingDurationSlider.Value;
         
-        // Damage effects
-        config.Advanced.LaserDamage.Duration = (int)LaserDmgDurationSlider.Value;
+        // Damage effects (Laser damage Duration removed - now uses tier detection)
         config.Advanced.LaserDamage.Frequency = (int)LaserDmgFrequencySlider.Value;
         config.Advanced.LaserDamage.AttackTime = (int)LaserDmgAttackSlider.Value;
         config.Advanced.LaserDamage.FadeTime = (int)LaserDmgFadeSlider.Value;
@@ -497,6 +502,10 @@ public partial class MainWindow : Window
         config.Advanced.BallisticDamage.Duration = (int)BallisticDmgDurationSlider.Value;
         config.Advanced.BallisticDamage.AttackTime = (int)BallisticDmgAttackSlider.Value;
         config.Advanced.BallisticDamage.FadeTime = (int)BallisticDmgFadeSlider.Value;
+        
+        config.Advanced.PPCDamage.Duration = (int)PPCDmgDurationSlider.Value;
+        config.Advanced.PPCDamage.AttackTime = (int)PPCDmgAttackSlider.Value;
+        config.Advanced.PPCDamage.FadeTime = (int)PPCDmgFadeSlider.Value;
         
         config.Advanced.MissileDamage.Duration = (int)MissileDmgDurationSlider.Value;
         config.Advanced.MissileDamage.AttackTime = (int)MissileDmgAttackSlider.Value;
