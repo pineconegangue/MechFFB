@@ -142,11 +142,13 @@ public class SimpleModeSettings
     public float LaserIntensity { get; set; } = 0.6f;
     public float PPCIntensity { get; set; } = 0.6f;
     public float MissileIntensity { get; set; } = 0.6f;
+    public float MachineGunIntensity { get; set; } = 0.6f;
     public float MeleeIntensity { get; set; } = 0.6f;
     
     // Incoming damage by type
     public float LaserDamageIntensity { get; set; } = 0.6f;
     public float BallisticDamageIntensity { get; set; } = 0.6f;
+    public float PPCDamageIntensity { get; set; } = 0.6f;
     public float MissileDamageIntensity { get; set; } = 0.6f;
     public float MeleeDamageIntensity { get; set; } = 0.6f;
     public float ExplosionDamageIntensity { get; set; } = 0.6f;
@@ -175,6 +177,7 @@ public class AdvancedModeSettings
     // Damage by type
     public DamageSettings LaserDamage { get; set; } = new();
     public DamageSettings BallisticDamage { get; set; } = new();
+    public DamageSettings PPCDamage { get; set; } = new();
     public DamageSettings MissileDamage { get; set; } = new() 
     { 
         AttackTime = 15, 
@@ -228,7 +231,7 @@ public class BallisticSettings
 public class LaserSettings
 {
     public float Intensity { get; set; } = 0.6f;
-    public int Duration { get; set; } = 300; // ms
+    // Duration removed - now uses F3 beam duration from game data
     public int Frequency { get; set; } = 40; // Hz
     public int AttackTime { get; set; } = 30; // ms
     public int FadeTime { get; set; } = 80; // ms

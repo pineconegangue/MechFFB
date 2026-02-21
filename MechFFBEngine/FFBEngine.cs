@@ -20,6 +20,7 @@ public class FFBEngine : IDisposable
     private int _activeJumpJetEffectId = -1;
     private System.Threading.Timer? _machineGunTimer = null;
     private bool _machineGunsActive = false;
+    private int _currentMachineGunMagnitude = 0; // Current magnitude for active machine gun firing
     
     // Streak missile detection and effect cleanup
     private DateTime _lastMissileTime = DateTime.MinValue;
@@ -224,25 +225,49 @@ public class FFBEngine : IDisposable
                 }
                 else if (e.IsMachineGun)
                 {
-                    if (!_machineGunsActive)
+                    // Machine gun - continuous rapid pulses while firing
+                    if (e.IsActive)
                     {
-                        _machineGunsActive = true;
                         var mg = _configuration.Advanced.MachineGuns;
                         
-                        _machineGunTimer = new System.Threading.Timer(_ =>
-                        {
-                            if (!_machineGunsActive) return;
-                            FireMachineGunPulse(magnitude, mg);
-                        }, null, 0, mg.Duration + 10);
+                        // Always update magnitude - allows slider changes to take effect immediately
+                        _currentMachineGunMagnitude = magnitude;
                         
-                        Task.Delay((int)(e.BeamDuration * 1000) + 100).ContinueWith(_ =>
+                        if (!_machineGunsActive || _machineGunTimer == null)
                         {
-                            _machineGunsActive = false;
+                            // Start or restart continuous firing
+                            _machineGunsActive = true;
+                            
+                            // Clean up old timer if it exists
                             _machineGunTimer?.Dispose();
-                            _machineGunTimer = null;
-                        });
+                            
+                            // Fire immediately
+                            FireMachineGunPulse(_currentMachineGunMagnitude, mg);
+                            
+                            // Set up timer to fire every 93ms
+                            _machineGunTimer = new System.Threading.Timer(_ => 
+                            {
+                                if (_machineGunsActive)
+                                {
+                                    // Use current magnitude from field (updates with slider changes)
+                                    FireMachineGunPulse(_currentMachineGunMagnitude, _configuration.Advanced.MachineGuns);
+                                }
+                            }, null, 93, 93);
+                            
+                            Console.WriteLine($"Machine Gun: START/RESTART continuous fire, magnitude={_currentMachineGunMagnitude}");
+                        }
+                        // else: Already firing, magnitude updated above
                     }
-                    return;
+                    else if (!e.IsActive && _machineGunsActive)
+                    {
+                        // Stop continuous firing
+                        _machineGunsActive = false;
+                        _machineGunTimer?.Dispose();
+                        _machineGunTimer = null;
+                        _currentMachineGunMagnitude = 0;
+                        Console.WriteLine("Machine Gun: STOP");
+                    }
+                    return; // Don't create single effect
                 }
                 else
                 {
@@ -267,6 +292,17 @@ public class FFBEngine : IDisposable
                         int delay = (int)(i * delayBetweenMissiles);
                         Task.Delay(delay).ContinueWith(_ =>
                         {
+                            // Limit concurrent effects to prevent overwhelming the device
+                            const int MAX_CONCURRENT_STREAK_EFFECTS = 3;
+                            
+                            // If at limit, clean up oldest effects to make room
+                            while (_activeStreakEffects.Count >= MAX_CONCURRENT_STREAK_EFFECTS)
+                            {
+                                int oldestEffectId = _activeStreakEffects[0];
+                                _hapticManager.DestroyEffect(oldestEffectId);
+                                _activeStreakEffects.RemoveAt(0);
+                            }
+                            
                             int streakEffectId = _hapticManager.CreatePeriodicEffect(magnitude, missile.Duration, missile.Frequency, missile.AttackTime, missile.FadeTime);
                             if (streakEffectId >= 0)
                             {
@@ -305,7 +341,12 @@ public class FFBEngine : IDisposable
     
     private void HandleDamage(object? sender, DamageEvent e)
     {
-        int direction = CalculateDirection(e.HitDirection);
+        // NOTE: Game does not provide actual hit direction data - Float1/2/3 are always (0,1,0) or (0,0.75,0)
+        // Using fixed direction (9000° = back pull, feels like forward push) for all impact damage
+        int direction = 9000; // Fixed: Always pull back (feels like being pushed forward)
+        
+        // Debug logging (can be removed after confirming)
+        // Console.WriteLine($"DAMAGE DEBUG: HitDir=({e.HitDirection.X:F2}, {e.HitDirection.Y:F2}, {e.HitDirection.Z:F2}), Using fixed={direction}°");
         
         // Scale damage similar to weapons - need baseline + scaling for small damage values
         // Damage amounts are typically 0.1 to 50+
@@ -364,12 +405,14 @@ public class FFBEngine : IDisposable
             _ => _configuration.Advanced.BallisticDamage
         };
         
-        float damageIntensity = e.DamageType switch
+        float damageIntensity = (int)e.DamageType switch
         {
-            (DamageType)0 => _configuration.Simple.LaserDamageIntensity,      // Trace/Laser
-            (DamageType)1 => _configuration.Simple.BallisticDamageIntensity,  // Projectile/Ballistic
-            (DamageType)2 => _configuration.Simple.MissileDamageIntensity,    // Missile
-            (DamageType)3 => _configuration.Simple.MeleeDamageIntensity,      // Melee
+            0 => _configuration.Simple.LaserDamageIntensity,      // Trace/Laser
+            1 => (e.DamageAmount >= 9.0f && e.DamageAmount <= 11.0f) 
+                 ? _configuration.Simple.PPCDamageIntensity        // PPC damage
+                 : _configuration.Simple.BallisticDamageIntensity, // Ballistic damage
+            2 => _configuration.Simple.MissileDamageIntensity,    // Missile
+            3 => _configuration.Simple.MeleeDamageIntensity,      // Melee
             _ => 0.6f
         };
         
@@ -380,15 +423,51 @@ public class FFBEngine : IDisposable
         switch ((int)e.DamageType)
         {
             case 0: // Trace (Laser damage)
-                // Vibration effect for laser damage
+                // Detect laser tier by damage amount and apply appropriate duration
+                // Small Laser: ~2-4 damage (~0.6s duration)
+                // Medium Laser: ~4-6 damage (~0.76s duration)
+                // Large Laser: ~7-10 damage (~0.89s duration)
+                // ER variants are slightly higher
+                
+                int laserDuration;
+                if (e.DamageAmount <= 4.0f)
+                {
+                    // Small laser tier
+                    laserDuration = 600; // ~0.6s like small laser beam
+                    Console.WriteLine($"Laser Damage: SMALL tier ({e.DamageAmount:F1} dmg) -> {laserDuration}ms duration");
+                }
+                else if (e.DamageAmount <= 6.5f)
+                {
+                    // Medium laser tier
+                    laserDuration = 760; // ~0.76s like medium laser beam
+                    Console.WriteLine($"Laser Damage: MEDIUM tier ({e.DamageAmount:F1} dmg) -> {laserDuration}ms duration");
+                }
+                else
+                {
+                    // Large laser tier
+                    laserDuration = 890; // ~0.89s like large laser beam
+                    Console.WriteLine($"Laser Damage: LARGE tier ({e.DamageAmount:F1} dmg) -> {laserDuration}ms duration");
+                }
+                
                 var laserDmg = _configuration.Advanced.LaserDamage;
-                effectId = _hapticManager.CreatePeriodicEffect(magnitude, laserDmg.Duration, laserDmg.Frequency, laserDmg.AttackTime, laserDmg.FadeTime);
+                effectId = _hapticManager.CreatePeriodicEffect(magnitude, laserDuration, laserDmg.Frequency, laserDmg.AttackTime, laserDmg.FadeTime);
                 break;
                 
-            case 1: // Projectile (Ballistic damage)
-                // Impact effect for ballistic damage
-                var ballisticDmg = _configuration.Advanced.BallisticDamage;
-                effectId = _hapticManager.CreateImpactEffect(magnitude, ballisticDmg.Duration, ballisticDmg.AttackTime, ballisticDmg.FadeTime, direction);
+            case 1: // Projectile (Ballistic/PPC damage)
+                // Detect PPC vs Autocannon by damage amount
+                // PPCs do around 10 damage, ACs vary (2-20 typically)
+                bool isPPCDamage = e.DamageAmount >= 9.0f && e.DamageAmount <= 11.0f;
+                
+                if (isPPCDamage)
+                {
+                    var ppcDmg = _configuration.Advanced.PPCDamage;
+                    effectId = _hapticManager.CreateImpactEffect(magnitude, ppcDmg.Duration, ppcDmg.AttackTime, ppcDmg.FadeTime, direction);
+                }
+                else
+                {
+                    var ballisticDmg = _configuration.Advanced.BallisticDamage;
+                    effectId = _hapticManager.CreateImpactEffect(magnitude, ballisticDmg.Duration, ballisticDmg.AttackTime, ballisticDmg.FadeTime, direction);
+                }
                 break;
                 
             case 2: // Missile damage
@@ -530,6 +609,11 @@ public class FFBEngine : IDisposable
                     baseMag = (e.Damage * 15) + 10000;
                     weaponIntensity = _configuration.Simple.PPCIntensity;
                 }
+                else if (e.IsMachineGun)
+                {
+                    baseMag = (e.Damage * 18) + 25000;
+                    weaponIntensity = _configuration.Simple.MachineGunIntensity;
+                }
                 else
                 {
                     baseMag = (e.Damage * 18) + 10000;
@@ -583,14 +667,6 @@ public class FFBEngine : IDisposable
         {
             return _configuration.Advanced.Missiles.Duration;
         }
-    }
-    
-    private int CalculateDirection(System.Numerics.Vector3 hitDir)
-    {
-        double angle = Math.Atan2(hitDir.Y, hitDir.X);
-        int degrees = (int)(angle * 18000.0 / Math.PI);
-        if (degrees < 0) degrees += 36000;
-        return degrees;
     }
     
     public void Dispose()
