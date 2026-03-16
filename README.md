@@ -9,22 +9,25 @@ In MW5: You can still virtual controllers such as Joystick Gremlin or UCR for in
 YOU WILL NEED THE MECHSHAKER MOD FOR THIS TO WORK - https://www.nexusmods.com/mechwarrior5mercenaries/mods/1029
 
 
-Setup:
+Setup (NEW - MAKE SURE TO READ):
+
 Download and set up MechShaker - https://www.nexusmods.com/mechwarrior5mercenaries/mods/1029 - MechShakerRelay MUST be active. MechShaker app itself does not need to run for MechFFB to work, but if you have bass shakers this is non-negotiable really - put them to work and go turn MechShaker on.
 
 Download latest MechFFB release, extract anywhere you like
+
+NEW STEP: Replace MechShakerRelay.pak in the MW5 mods folder loacted in MechShakerRelay>Paks with the MechShakerRelay.pak included in the latest release .zip file.
 
 Run MechFFB.exe
 
 Select your FFB Joystick (do not select your virtual controller)
 
-Click "Test Device" to verify FFB output is actually working.
+Click "Test Device" to verify FFB output is actually working. (This seems to be finicky on some devices, don't worry if it doesn't work)
 
 Click "Start Engine"
 
 Launch MW5 and ensure MechShaker mod is enabled
 
-Enable "Invert Axis" to invert force feedback vertical axis (only if your device requires this - weapon fire should pull towards you, not away from you - enable invert axis if weapon fire pulls away from you)
+Enable "Invert Axis" to invert force feedback (only if your device requires this - weapon fire should pull towards you, not away from you - enable invert axis if weapon fire pulls away from you) - Only confirmed working on Moza AB9 for version 3.0.0.
 
 
 
