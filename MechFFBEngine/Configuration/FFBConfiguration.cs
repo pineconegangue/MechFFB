@@ -11,28 +11,35 @@ public class FFBConfiguration
     /// Master intensity multiplier (0.0 to 1.0)
     /// </summary>
     public float MasterIntensity { get; set; } = 1.0f;
-    
+
     /// <summary>
     /// Configuration mode: Simple or Advanced
     /// </summary>
     public ConfigurationMode Mode { get; set; } = ConfigurationMode.Simple;
-    
+
     // Simple mode settings
     public SimpleModeSettings Simple { get; set; } = new();
-    
+
     // Advanced mode settings
     public AdvancedModeSettings Advanced { get; set; } = new();
-    
+
     /// <summary>
     /// Currently selected device GUID
     /// </summary>
     public Guid? SelectedDeviceGuid { get; set; }
-    
+
     /// <summary>
     /// Invert force direction (for devices with opposite axis conventions like VPForce Rhino)
     /// </summary>
     public bool InvertDirection { get; set; } = false;
-    
+
+    /// <summary>
+    /// Disable exclusive mode (use non-exclusive mode for all devices)
+    /// Useful for devices like Sidewinder FFB2 that need hardware centering spring
+    /// Note: Requires restart to take effect
+    /// </summary>
+    public bool DisableExclusiveMode { get; set; } = false;
+
     /// <summary>
     /// Get the default configuration file path
     /// </summary>
@@ -43,7 +50,7 @@ public class FFBConfiguration
         Directory.CreateDirectory(mechFFBPath); // Ensure directory exists
         return Path.Combine(mechFFBPath, "settings.json");
     }
-    
+
     /// <summary>
     /// Save configuration to file
     /// </summary>
@@ -53,16 +60,16 @@ public class FFBConfiguration
         {
             string path = GetConfigPath();
             Console.WriteLine($"Attempting to save configuration to: {path}");
-            
-            string json = JsonSerializer.Serialize(this, new JsonSerializerOptions 
-            { 
-                WriteIndented = true 
+
+            string json = JsonSerializer.Serialize(this, new JsonSerializerOptions
+            {
+                WriteIndented = true
             });
-            
+
             Console.WriteLine($"JSON generated, length: {json.Length} characters");
-            
+
             File.WriteAllText(path, json);
-            
+
             // Verify the file was written
             if (File.Exists(path))
             {
@@ -80,7 +87,7 @@ public class FFBConfiguration
             Console.WriteLine($"  Stack trace: {ex.StackTrace}");
         }
     }
-    
+
     /// <summary>
     /// Load configuration from file, or create default if none exists
     /// </summary>
@@ -90,13 +97,13 @@ public class FFBConfiguration
         {
             string path = GetConfigPath();
             Console.WriteLine($"Attempting to load configuration from: {path}");
-            
+
             if (File.Exists(path))
             {
                 string json = File.ReadAllText(path);
                 Console.WriteLine($"Found config file, size: {json.Length} characters");
                 Console.WriteLine($"First 200 chars: {json.Substring(0, Math.Min(200, json.Length))}");
-                
+
                 var config = JsonSerializer.Deserialize<FFBConfiguration>(json);
                 if (config != null)
                 {
@@ -120,7 +127,7 @@ public class FFBConfiguration
         {
             Console.WriteLine($"✗ Error loading configuration: {ex.Message}");
         }
-        
+
         Console.WriteLine("Using default configuration");
         return new FFBConfiguration();
     }
@@ -138,22 +145,24 @@ public enum ConfigurationMode
 public class SimpleModeSettings
 {
     // Weapon recoil by type (default to ~60% for good starting feel)
-    public float BallisticIntensity { get; set; } = 0.6f;
+    public float BallisticIntensity { get; set; } = 1.0f;
     public float LaserIntensity { get; set; } = 0.6f;
     public float PPCIntensity { get; set; } = 0.6f;
     public float MissileIntensity { get; set; } = 0.6f;
+    public float MachineGunIntensity { get; set; } = 0.6f;
     public float MeleeIntensity { get; set; } = 0.6f;
-    
+
     // Incoming damage by type
     public float LaserDamageIntensity { get; set; } = 0.6f;
     public float BallisticDamageIntensity { get; set; } = 0.6f;
+    public float PPCDamageIntensity { get; set; } = 0.6f;
     public float MissileDamageIntensity { get; set; } = 0.6f;
     public float MeleeDamageIntensity { get; set; } = 0.6f;
     public float ExplosionDamageIntensity { get; set; } = 0.6f;
-    
+
     // Impacts
     public float LandingIntensity { get; set; } = 0.6f;
-    
+
     // Movement (usually more subtle)
     public float FootstepIntensity { get; set; } = 0.3f;
     public float JumpJetIntensity { get; set; } = 0.5f;
@@ -171,28 +180,29 @@ public class AdvancedModeSettings
     public MachineGunSettings MachineGuns { get; set; } = new();
     public MissileSettings Missiles { get; set; } = new();
     public MeleeSettings Melee { get; set; } = new();
-    
+
     // Damage by type
     public DamageSettings LaserDamage { get; set; } = new();
     public DamageSettings BallisticDamage { get; set; } = new();
-    public DamageSettings MissileDamage { get; set; } = new() 
-    { 
-        AttackTime = 15, 
-        FadeTime = 200 
+    public DamageSettings PPCDamage { get; set; } = new();
+    public DamageSettings MissileDamage { get; set; } = new()
+    {
+        AttackTime = 15,
+        FadeTime = 200
     };
-    public DamageSettings MeleeDamage { get; set; } = new() 
-    { 
-        Duration = 400, 
-        AttackTime = 5, 
-        FadeTime = 300 
+    public DamageSettings MeleeDamage { get; set; } = new()
+    {
+        Duration = 400,
+        AttackTime = 5,
+        FadeTime = 300
     };
-    public DamageSettings ExplosionDamage { get; set; } = new() 
-    { 
-        AttackTime = 20, 
-        FadeTime = 400 
+    public DamageSettings ExplosionDamage { get; set; } = new()
+    {
+        AttackTime = 20,
+        FadeTime = 400
     };
     public ExplosionDamageSettings ExplosionDamageAdvanced { get; set; } = new();
-    
+
     // Movement and impacts
     public FootstepSettings Footsteps { get; set; } = new();
     public JumpJetSettings JumpJets { get; set; } = new();
@@ -207,7 +217,7 @@ public class ExplosionDamageSettings
     public int ImpactAttackTime { get; set; } = 20; // ms
     public int ImpactFadeTime { get; set; } = 400; // ms
     public float ImpactMultiplier { get; set; } = 1.0f; // 100% of base damage magnitude
-    
+
     // Rumble settings
     public int RumbleDuration { get; set; } = 500; // ms
     public int RumbleFrequency { get; set; } = 25; // Hz
@@ -228,7 +238,7 @@ public class BallisticSettings
 public class LaserSettings
 {
     public float Intensity { get; set; } = 0.6f;
-    public int Duration { get; set; } = 300; // ms
+    // Duration removed - now uses F3 beam duration from game data
     public int Frequency { get; set; } = 40; // Hz
     public int AttackTime { get; set; } = 30; // ms
     public int FadeTime { get; set; } = 80; // ms

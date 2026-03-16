@@ -1,6 +1,7 @@
-using System.Text.Json;
 using MechFFBReader.Events;
 using MechFFBReader.Infrastructure;
+using System.Text.Json;
+using System.Threading.Channels;
 
 namespace MechFFBReader;
 
@@ -14,7 +15,7 @@ public class TelemetryReader : IDisposable
     private readonly CancellationTokenSource _cancellationSource;
     private Task? _readTask;
     private bool _isRunning;
-    
+
     // Events that consumers can subscribe to
     public event EventHandler<WeaponFireEvent>? OnWeaponFire;
     public event EventHandler<DamageEvent>? OnDamage;
@@ -22,18 +23,36 @@ public class TelemetryReader : IDisposable
     public event EventHandler<JumpJetEvent>? OnJumpJet;
     public event EventHandler<ImpactEvent>? OnImpact;
     public event EventHandler<string>? OnConnectionStateChanged;
-    
+
     // Statistics
     public int EventsProcessed { get; private set; }
     public DateTime? LastEventTime { get; private set; }
     public bool IsConnected => _mmfHandler.IsConnected;
-    
+
+    // Async log queue — keeps Console.WriteLine off the MMF read thread
+    private readonly Channel<string> _logQueue = Channel.CreateUnbounded<string>(
+        new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
+    private Task? _logTask;
+    private CancellationTokenSource? _logCts;
+
+    private void Log(string message) => _logQueue.Writer.TryWrite(message);
+
+    private async Task LogLoop(CancellationToken token)
+    {
+        try
+        {
+            await foreach (var msg in _logQueue.Reader.ReadAllAsync(token))
+                Console.WriteLine(msg);
+        }
+        catch (OperationCanceledException) { }
+    }
+
     public TelemetryReader()
     {
         _mmfHandler = new MemoryMappedFileHandler();
         _cancellationSource = new CancellationTokenSource();
     }
-    
+
     /// <summary>
     /// Start reading telemetry data from the MMF
     /// This will run on a background thread and raise events as data comes in
@@ -42,11 +61,21 @@ public class TelemetryReader : IDisposable
     {
         if (_isRunning)
             return;
-        
+
         _isRunning = true;
-        _readTask = Task.Run(ReadLoop, _cancellationSource.Token);
+        _logCts = new CancellationTokenSource();
+        _logTask = Task.Factory.StartNew(
+            () => LogLoop(_logCts.Token),
+            _logCts.Token,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default).Unwrap();
+        _readTask = Task.Factory.StartNew(
+            ReadLoop,
+            _cancellationSource.Token,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default);
     }
-    
+
     /// <summary>
     /// Stop reading telemetry data
     /// </summary>
@@ -54,17 +83,22 @@ public class TelemetryReader : IDisposable
     {
         if (!_isRunning)
             return;
-        
+
         _isRunning = false;
         _cancellationSource.Cancel();
         _readTask?.Wait(TimeSpan.FromSeconds(2));
+        _logQueue.Writer.TryComplete();
+        _logCts?.Cancel();
+        _logTask?.Wait(TimeSpan.FromSeconds(1));
+        _logCts?.Dispose();
+        _logCts = null;
     }
-    
-    private async Task ReadLoop()
+
+    private void ReadLoop()
     {
         var token = _cancellationSource.Token;
         bool wasConnected = false;
-        
+
         while (!token.IsCancellationRequested)
         {
             try
@@ -73,38 +107,51 @@ public class TelemetryReader : IDisposable
                 if (!_mmfHandler.IsConnected)
                 {
                     bool connected = _mmfHandler.Connect();
-                    
+
                     if (connected && !wasConnected)
                     {
                         wasConnected = true;
                         OnConnectionStateChanged?.Invoke(this, "Connected to MechWarrior 5");
-                        Console.WriteLine("Connected to MechWarrior 5 telemetry");
+                        Log("Connected to MechWarrior 5 telemetry");
                     }
                     else if (!connected && wasConnected)
                     {
                         wasConnected = false;
                         OnConnectionStateChanged?.Invoke(this, "Disconnected from MechWarrior 5");
-                        Console.WriteLine("Disconnected from MechWarrior 5 telemetry");
+                        Log("Disconnected from MechWarrior 5 telemetry");
                     }
-                    
+
                     if (!connected)
                     {
-                        // Not connected, wait before retrying
-                        await Task.Delay(1000, token);
+                        // Not connected — sleep 1s before retrying (no need for precision here)
+                        Thread.Sleep(1000);
                         continue;
                     }
                 }
-                
+
                 // Read all new events from the circular buffer
                 var events = _mmfHandler.ReadNewEvents();
-                
+
                 foreach (var eventData in events)
                 {
                     ProcessEvent(eventData);
                 }
-                
-                // Small delay to prevent CPU spinning (targeting ~1000Hz poll rate)
-                await Task.Delay(1, token);
+
+                // Adaptive sleep:
+                // - If events were present, yield without sleeping (Thread.Sleep(0)) so we
+                //   catch any further events in the same game-write batch immediately.
+                // - If the buffer was empty, sleep 1ms. This keeps CPU usage near-zero
+                //   during idle (between shots, footsteps etc.) while still polling fast
+                //   enough that we never miss the start of a new event batch.
+                //
+                // Note: Thread.Sleep(1) on Windows wakes at the multimedia timer resolution
+                // (~1ms when timeBeginPeriod(1) is active, which MW5 sets while running).
+                // Even without that, worst-case 15.6ms idle latency is fine — we only care
+                // about sub-millisecond latency when events are actually flowing.
+                if (events.Count > 0)
+                    Thread.Sleep(0);
+                else
+                    Thread.Sleep(1);
             }
             catch (OperationCanceledException)
             {
@@ -113,14 +160,14 @@ public class TelemetryReader : IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error in read loop: {ex.Message}");
-                await Task.Delay(100, token);
+                Log($"Error in read loop: {ex.Message}");
+                Thread.Sleep(100);
             }
         }
-        
+
         _mmfHandler.Disconnect();
     }
-    
+
     private void ProcessEvent(MemoryMappedFileHandler.EventData eventData)
     {
         try
@@ -141,15 +188,17 @@ public class TelemetryReader : IDisposable
             const int EVENT_POWERING = 13;
             const int EVENT_PART_DESTRUCTION = 14;
             const int EVENT_DAMAGED = 15;
-            
-            // Only log non-TorsoTwist events to avoid spam
-            if (eventData.EventCode != EVENT_TORSO_TWIST)
+
+            // Only log events that aren't spam (filter TorsoTwist, MASC, AMS)
+            if (eventData.EventCode != EVENT_TORSO_TWIST &&
+                eventData.EventCode != EVENT_MASC &&
+                eventData.EventCode != EVENT_AMS)
             {
-                Console.WriteLine($"Event: Code={eventData.EventCode}, Int0={eventData.Int0}, " +
-                                $"F0={eventData.Float0:F2}, F1={eventData.Float1:F2}, F2={eventData.Float2:F2}, " +
-                                $"F3={eventData.Float3:F2}, F4={eventData.Float4:F2}, F5={eventData.Float5:F2}");
+                Log($"Event: Code={eventData.EventCode}, Int0={eventData.Int0}, " +
+                    $"F0={eventData.Float0:F2}, F1={eventData.Float1:F2}, F2={eventData.Float2:F2}, " +
+                    $"F3={eventData.Float3:F2}, F4={eventData.Float4:F2}, F5={eventData.Float5:F2}");
             }
-            
+
             switch (eventData.EventCode)
             {
                 case EVENT_PROJECTILE:
@@ -165,16 +214,18 @@ public class TelemetryReader : IDisposable
                     {
                         WeaponClass = eventData.Float4 == 0 ? WeaponClass.Energy : WeaponClass.Ballistic,
                         IsPPC = eventData.Float4 == 0,
-                        ProjectileMass = eventData.Float2, // Number of projectiles as mass approximation
-                        MuzzleVelocity = eventData.Float3, // Speed
-                        Damage = eventData.Float5, // Impulse
+                        NumberOfShots = (int)eventData.Float0,        // UAC/RAC burst count
+                        DelayBetweenShots = eventData.Float1,         // Delay between burst shots
+                        ProjectileMass = eventData.Float2,            // Number of projectiles per shot
+                        MuzzleVelocity = eventData.Float3,            // Speed
+                        Damage = eventData.Float5,                    // Impulse
                         Timestamp = 0
                     };
                     OnWeaponFire?.Invoke(this, weaponEvent);
                     EventsProcessed++;
                     LastEventTime = DateTime.Now;
                     break;
-                    
+
                 case EVENT_TRACE:
                     // Lasers, flamers, machine guns
                     // Float0 = DamageOverDuration
@@ -196,7 +247,7 @@ public class TelemetryReader : IDisposable
                     EventsProcessed++;
                     LastEventTime = DateTime.Now;
                     break;
-                    
+
                 case EVENT_MISSILES:
                     // Int0 = WeaponId
                     // Float0 = NumberOfMissiles
@@ -215,39 +266,33 @@ public class TelemetryReader : IDisposable
                     EventsProcessed++;
                     LastEventTime = DateTime.Now;
                     break;
-                    
+
                 case EVENT_DAMAGED:
                     // Int0 = DamageType (0=Trace, 1=Projectile, 2=Missile, 3=Melee, 4=Explosion)
                     // Float0 = Damage amount
-                    // Float1 = Unknown - potentially direction X?
-                    // Float2 = Unknown - potentially direction Y?
-                    // Float3 = Unknown - potentially direction Z?
-                    
-                    // Log all available data to help identify direction fields
-                    Console.WriteLine($"DAMAGE EVENT: Type={eventData.Int0}, Amt={eventData.Float0:F2}, " +
-                                    $"F1={eventData.Float1:F2}, F2={eventData.Float2:F2}, F3={eventData.Float3:F2}, " +
-                                    $"F4={eventData.Float4:F2}, F5={eventData.Float5:F2}");
-                    
-                    // Attempt to use Float1/Float2/Float3 as direction vector
-                    // If they're all zero, fall back to default
-                    var hitDir = new System.Numerics.Vector3(eventData.Float1, eventData.Float2, eventData.Float3);
-                    if (hitDir.LengthSquared() < 0.01f) // If vector is near-zero, use default
-                    {
-                        hitDir = new System.Numerics.Vector3(0, 1, 0);
-                    }
-                    
+                    // Float2 = Beam duration in seconds (for laser/trace damage)
+                    // Float3 = Direction angle in degrees (0-360°)
+                    //   0° = Rear, 90° = Left, 180° = Front, 270° = Right
+
+                    // Log all available data
+                    Log($"DAMAGE EVENT: Type={eventData.Int0}, Amt={eventData.Float0:F2}, " +
+                        $"F1={eventData.Float1:F2}, F2={eventData.Float2:F2}, F3={eventData.Float3:F2}, " +
+                        $"F4={eventData.Float4:F2}, F5={eventData.Float5:F2}");
+
                     var damageEvent = new DamageEvent
                     {
                         DamageType = (DamageType)eventData.Int0,
                         DamageAmount = eventData.Float0,
-                        HitDirection = hitDir,
+                        BeamDuration = eventData.Float2, // Beam duration in seconds (laser/trace damage)
+                        DirectionAngle = eventData.Float3, // Direction in degrees (0-360°)
                         Timestamp = 0
                     };
                     OnDamage?.Invoke(this, damageEvent);
                     EventsProcessed++;
                     LastEventTime = DateTime.Now;
                     break;
-                    
+
+
                 case EVENT_FOOTSTEP:
                     // Int0 = MassInTons
                     // Float1 = SpeedInKmh
@@ -263,7 +308,7 @@ public class TelemetryReader : IDisposable
                     EventsProcessed++;
                     LastEventTime = DateTime.Now;
                     break;
-                    
+
                 case EVENT_JUMPJETS:
                     // Int0 = Active (1 = active)
                     var jumpEvent = new JumpJetEvent
@@ -277,7 +322,7 @@ public class TelemetryReader : IDisposable
                     EventsProcessed++;
                     LastEventTime = DateTime.Now;
                     break;
-                    
+
                 case EVENT_LANDED:
                     // Int0 = MassInTons
                     // Float0 = AccelerationInKmh2
@@ -293,7 +338,7 @@ public class TelemetryReader : IDisposable
                     EventsProcessed++;
                     LastEventTime = DateTime.Now;
                     break;
-                    
+
                 case EVENT_MELEE:
                     // Int0 = MassInTons
                     // Float0 = IsHit (1 = hit)
@@ -312,11 +357,11 @@ public class TelemetryReader : IDisposable
                         LastEventTime = DateTime.Now;
                     }
                     break;
-                    
+
                 case EVENT_TORSO_TWIST:
                     // Continuous event - ignore for FFB
                     break;
-                    
+
                 case EVENT_AMS:
                 case EVENT_DROPSHIP:
                 case EVENT_AIRBORNE:
@@ -325,19 +370,19 @@ public class TelemetryReader : IDisposable
                 case EVENT_PART_DESTRUCTION:
                     // Not currently used for FFB
                     break;
-                    
+
                 default:
                     if (eventData.EventCode != -1 && eventData.EventCode != -2)
-                        Console.WriteLine($"Unknown event code: {eventData.EventCode}");
+                        Log($"Unknown event code: {eventData.EventCode}");
                     break;
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error processing event: {ex.Message}");
+            Log($"Error processing event: {ex.Message}");
         }
     }
-    
+
     public void Dispose()
     {
         Stop();

@@ -17,22 +17,28 @@ public class DirectInputHapticManager : IDisposable
     private Dictionary<int, Effect> _activeEffects = new();
     private int _nextEffectId = 0;
     private int[]? _deviceAxes = null; // Cache device axes
-    
+
     /// <summary>
     /// Optional window handle for cooperative level
     /// Set this from your UI application's main window handle if you want exclusive access
     /// </summary>
     public IntPtr WindowHandle { get; set; } = IntPtr.Zero;
-    
+
     /// <summary>
     /// Invert force direction (some devices have opposite axis conventions)
     /// Set to true if impacts push the wrong way
     /// </summary>
     public bool InvertDirection { get; set; } = false;
-    
+
+    /// <summary>
+    /// Disable exclusive mode - use non-exclusive for all devices
+    /// Useful for devices like Sidewinder FFB2 that need hardware centering spring
+    /// </summary>
+    public bool DisableExclusiveMode { get; set; } = false;
+
     public bool IsInitialized { get; private set; }
     public bool HasDeviceSelected => _joystick != null;
-    
+
     public class HapticDeviceInfo
     {
         public int Index { get; set; }
@@ -44,7 +50,7 @@ public class DirectInputHapticManager : IDisposable
         public int NumAxes { get; set; }
         public int MaxEffects { get; set; }
     }
-    
+
     /// <summary>
     /// Initialize DirectInput
     /// </summary>
@@ -53,9 +59,9 @@ public class DirectInputHapticManager : IDisposable
         try
         {
             Console.WriteLine("=== Initializing DirectInput for Force Feedback ===");
-            
+
             _directInput = new DirectInput();
-            
+
             RefreshDeviceList();
             IsInitialized = true;
             Console.WriteLine($"✓ DirectInput initialized successfully. Found {_availableDevices.Count} FFB device(s).");
@@ -68,7 +74,7 @@ public class DirectInputHapticManager : IDisposable
             return false;
         }
     }
-    
+
     /// <summary>
     /// Get list of all force feedback capable devices
     /// </summary>
@@ -77,31 +83,31 @@ public class DirectInputHapticManager : IDisposable
         RefreshDeviceList();
         return _availableDevices.ToList();
     }
-    
+
     private void RefreshDeviceList()
     {
         if (_directInput == null)
             return;
-            
+
         _availableDevices.Clear();
-        
+
         try
         {
             // Get all devices - not just GameControl class, as some FFB devices use other classes
             var devices = _directInput.GetDevices(DeviceClass.All, DeviceEnumerationFlags.AttachedOnly);
-            
+
             Console.WriteLine($"Found {devices.Count} device(s) total");
             Console.WriteLine("Scanning for Force Feedback capable devices...");
-            
+
             int index = 0;
             int ffbDeviceIndex = 0; // Separate counter for FFB devices only
-            
+
             foreach (var deviceInstance in devices)
             {
                 Console.WriteLine($"  Device {index}: {deviceInstance.ProductName}");
                 Console.WriteLine($"    GUID: {deviceInstance.InstanceGuid}");
                 Console.WriteLine($"    Type: {deviceInstance.Type}");
-                
+
                 // Try to open the device and check if it actually supports FFB
                 // Some devices don't report FFB in their flags but still support it
                 bool supportsForceFeedback = false;
@@ -109,30 +115,30 @@ public class DirectInputHapticManager : IDisposable
                 {
                     var tempJoystick = new Joystick(_directInput, deviceInstance.InstanceGuid);
                     var capabilities = tempJoystick.Capabilities;
-                    
+
                     // Check if device has FFB capability
                     supportsForceFeedback = capabilities.Flags.HasFlag(DeviceFlags.ForceFeedback);
-                    
+
                     Console.WriteLine($"    FFB Flag: {supportsForceFeedback}");
                     Console.WriteLine($"    Capabilities Flags: {capabilities.Flags}");
-                    
+
                     tempJoystick.Dispose();
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"    Could not query device: {ex.Message}");
                 }
-                
+
                 if (supportsForceFeedback)
                 {
                     Console.WriteLine($"    ✓ Supports Force Feedback!");
-                    
+
                     // Temporarily open device to query capabilities
                     try
                     {
                         var tempJoystick = new Joystick(_directInput, deviceInstance.InstanceGuid);
                         var capabilities = tempJoystick.Capabilities;
-                        
+
                         var deviceInfo = new HapticDeviceInfo
                         {
                             Index = ffbDeviceIndex,  // Use FFB device counter, not global index
@@ -141,24 +147,24 @@ public class DirectInputHapticManager : IDisposable
                             NumAxes = capabilities.AxeCount,
                             MaxEffects = 32 // Default max effects, SharpDX doesn't expose this directly
                         };
-                        
+
                         // Check supported effect types
                         var effects = tempJoystick.GetEffects();
                         deviceInfo.SupportsConstantForce = effects.Any(e => e.Guid == DirectInputFFB.GUID_ConstantForce);
                         deviceInfo.SupportsPeriodicEffects = effects.Any(e => e.Guid == DirectInputFFB.GUID_Sine);
                         deviceInfo.SupportsRampForce = effects.Any(e => e.Guid == DirectInputFFB.GUID_RampForce);
-                        
+
                         _availableDevices.Add(deviceInfo);
                         ffbDeviceIndex++; // Increment FFB device counter
-                        
+
                         Console.WriteLine($"      FFB Device Index: {deviceInfo.Index}");
-                        
+
                         Console.WriteLine($"      Axes: {deviceInfo.NumAxes}");
                         Console.WriteLine($"      Max Effects: {deviceInfo.MaxEffects}");
                         Console.WriteLine($"      Constant Force: {deviceInfo.SupportsConstantForce}");
                         Console.WriteLine($"      Periodic (Sine): {deviceInfo.SupportsPeriodicEffects}");
                         Console.WriteLine($"      Ramp Force: {deviceInfo.SupportsRampForce}");
-                        
+
                         tempJoystick.Dispose();
                     }
                     catch (Exception ex)
@@ -171,19 +177,19 @@ public class DirectInputHapticManager : IDisposable
                     // Even if FFB flag is not set, let's try to create effects anyway
                     // Some devices (like MOZA) might still work
                     Console.WriteLine($"    ⚠ FFB flag not set, but will try anyway...");
-                    
+
                     try
                     {
                         var tempJoystick = new Joystick(_directInput, deviceInstance.InstanceGuid);
                         var capabilities = tempJoystick.Capabilities;
-                        
+
                         // Try to get effects list - if this works, device supports FFB
                         var effects = tempJoystick.GetEffects();
-                        
+
                         if (effects.Count > 0)
                         {
                             Console.WriteLine($"    ✓ Device has {effects.Count} effect types - treating as FFB device!");
-                            
+
                             var deviceInfo = new HapticDeviceInfo
                             {
                                 Index = ffbDeviceIndex,  // Use FFB device counter, not global index
@@ -192,16 +198,16 @@ public class DirectInputHapticManager : IDisposable
                                 NumAxes = capabilities.AxeCount,
                                 MaxEffects = 32
                             };
-                            
+
                             deviceInfo.SupportsConstantForce = effects.Any(e => e.Guid == DirectInputFFB.GUID_ConstantForce);
                             deviceInfo.SupportsPeriodicEffects = effects.Any(e => e.Guid == DirectInputFFB.GUID_Sine);
                             deviceInfo.SupportsRampForce = effects.Any(e => e.Guid == DirectInputFFB.GUID_RampForce);
-                            
+
                             _availableDevices.Add(deviceInfo);
                             ffbDeviceIndex++; // Increment FFB device counter
-                            
+
                             Console.WriteLine($"      FFB Device Index: {deviceInfo.Index}");
-                            
+
                             Console.WriteLine($"      Axes: {deviceInfo.NumAxes}");
                             Console.WriteLine($"      Constant Force: {deviceInfo.SupportsConstantForce}");
                             Console.WriteLine($"      Periodic (Sine): {deviceInfo.SupportsPeriodicEffects}");
@@ -210,7 +216,7 @@ public class DirectInputHapticManager : IDisposable
                         {
                             Console.WriteLine($"    ✗ No FFB effects available");
                         }
-                        
+
                         tempJoystick.Dispose();
                     }
                     catch (Exception ex)
@@ -218,7 +224,7 @@ public class DirectInputHapticManager : IDisposable
                         Console.WriteLine($"    ✗ Cannot open as FFB device: {ex.Message}");
                     }
                 }
-                
+
                 index++;
             }
         }
@@ -227,7 +233,7 @@ public class DirectInputHapticManager : IDisposable
             Console.WriteLine($"✗ Error enumerating devices: {ex.Message}");
         }
     }
-    
+
     /// <summary>
     /// Select and open a specific FFB device
     /// </summary>
@@ -237,43 +243,50 @@ public class DirectInputHapticManager : IDisposable
         {
             // Release current device if any
             ReleaseDevice();
-            
+
             if (deviceIndex < 0 || deviceIndex >= _availableDevices.Count)
             {
                 Console.WriteLine($"✗ Invalid device index: {deviceIndex}");
                 return false;
             }
-            
+
             var deviceInfo = _availableDevices[deviceIndex];
             Console.WriteLine($"=== Selecting FFB Device ===");
             Console.WriteLine($"  Name: {deviceInfo.Name}");
             Console.WriteLine($"  GUID: {deviceInfo.InstanceGuid}");
-            
+
             if (_directInput == null)
             {
                 Console.WriteLine("✗ DirectInput not initialized");
                 return false;
             }
-            
+
             // Create joystick device
             _joystick = new Joystick(_directInput, deviceInfo.InstanceGuid);
-            
+
             // Set cooperative level
-            // If WindowHandle is provided, try exclusive mode
-            // Otherwise use non-exclusive mode which works without a window handle
+            // If DisableExclusiveMode is true, always use non-exclusive
+            // Otherwise, if WindowHandle is provided, use exclusive mode
             try
             {
-                if (WindowHandle != IntPtr.Zero)
+                if (DisableExclusiveMode)
+                {
+                    // Force non-exclusive mode (for devices like Sidewinder FFB2)
+                    _joystick.SetCooperativeLevel(IntPtr.Zero,
+                        CooperativeLevel.Background | CooperativeLevel.NonExclusive);
+                    Console.WriteLine("  Cooperative level: Background + NonExclusive (DisableExclusiveMode = true)");
+                }
+                else if (WindowHandle != IntPtr.Zero)
                 {
                     // Application provided window handle - use exclusive mode for best FFB
-                    _joystick.SetCooperativeLevel(WindowHandle, 
+                    _joystick.SetCooperativeLevel(WindowHandle,
                         CooperativeLevel.Background | CooperativeLevel.Exclusive);
                     Console.WriteLine("  Cooperative level: Background + Exclusive (with window handle)");
                 }
                 else
                 {
                     // No window handle - use non-exclusive mode
-                    _joystick.SetCooperativeLevel(IntPtr.Zero, 
+                    _joystick.SetCooperativeLevel(IntPtr.Zero,
                         CooperativeLevel.Background | CooperativeLevel.NonExclusive);
                     Console.WriteLine("  Cooperative level: Background + NonExclusive");
                 }
@@ -284,13 +297,13 @@ public class DirectInputHapticManager : IDisposable
                 Console.WriteLine("  Trying without SetCooperativeLevel...");
                 // Some devices work without explicitly setting cooperative level
             }
-            
+
             // Acquire the device
             _joystick.Acquire();
-            
+
             // Query and cache FFB axes - try multiple methods as devices vary
             Console.WriteLine("  Querying device axes...");
-            
+
             // Method 1: Try ForceFeedbackActuator type
             var ffbObjects = _joystick.GetObjects(DeviceObjectTypeFlags.ForceFeedbackActuator);
             if (ffbObjects.Count > 0)
@@ -322,12 +335,12 @@ public class DirectInputHapticManager : IDisposable
                     _deviceAxes = new int[] { 0 };
                 }
             }
-            
+
             _selectedDeviceIndex = deviceIndex;
-            
+
             Console.WriteLine($"✓ Device selected and acquired successfully");
             Console.WriteLine($"  Ready for Force Feedback effects!");
-            
+
             return true;
         }
         catch (Exception ex)
@@ -338,7 +351,7 @@ public class DirectInputHapticManager : IDisposable
             return false;
         }
     }
-    
+
     /// <summary>
     /// Test the device with a simple constant force effect
     /// </summary>
@@ -349,15 +362,15 @@ public class DirectInputHapticManager : IDisposable
             Console.WriteLine("✗ No device selected");
             return false;
         }
-        
+
         try
         {
             Console.WriteLine("=== Testing FFB Device ===");
-            
+
             // Query axes using multiple methods
             var ffbObjects = _joystick.GetObjects(DeviceObjectTypeFlags.ForceFeedbackActuator);
             var axes = new List<int>();
-            
+
             if (ffbObjects.Count > 0)
             {
                 Console.WriteLine($"Device has {ffbObjects.Count} FFB actuator(s):");
@@ -388,13 +401,13 @@ public class DirectInputHapticManager : IDisposable
                     axes.Add(0);
                 }
             }
-            
+
             Console.WriteLine($"Using {axes.Count} axis/axes for FFB effect");
             Console.WriteLine("Creating test effect (500ms constant force)...");
-            
+
             // Try Cartesian coordinates first (most common)
             bool useCartesian = true;
-            
+
             // Create parameters with actual device axes
             var parameters = new EffectParameters();
             parameters.Duration = 500000; // 500ms in microseconds
@@ -404,10 +417,10 @@ public class DirectInputHapticManager : IDisposable
             parameters.StartDelay = 0;
             parameters.TriggerButton = -1;
             parameters.TriggerRepeatInterval = 0;
-            
+
             // Use the actual axes from the device
             parameters.Axes = axes.ToArray();
-            
+
             // Direction - create array matching number of axes
             int[] directions = new int[axes.Count];
             if (axes.Count == 1)
@@ -422,7 +435,7 @@ public class DirectInputHapticManager : IDisposable
                     directions[i] = 0; // Other axes neutral
             }
             parameters.Directions = directions;
-            
+
             // Envelope
             var envelope = new Envelope();
             envelope.AttackLevel = 0;
@@ -430,14 +443,14 @@ public class DirectInputHapticManager : IDisposable
             envelope.FadeLevel = 0;
             envelope.FadeTime = 100000; // 100ms fade
             parameters.Envelope = envelope;
-            
+
             // Constant force - moderate strength
             var constantForce = new ConstantForce();
             constantForce.Magnitude = 6000; // 60% of 10000 max
             parameters.Parameters = constantForce;
-            
+
             Console.WriteLine("Uploading effect to device...");
-            
+
             Effect? effect = null;
             try
             {
@@ -446,10 +459,10 @@ public class DirectInputHapticManager : IDisposable
             catch (SharpDXException ex) when (ex.ResultCode == SharpDX.Result.InvalidArg)
             {
                 Console.WriteLine("  ⚠ Cartesian coordinates failed, trying Polar...");
-                
+
                 // Retry with Polar coordinates
                 parameters.Flags = EffectFlags.Polar | EffectFlags.ObjectOffsets;
-                
+
                 // Polar uses angle (0-35999) and magnitude
                 if (axes.Count >= 2)
                 {
@@ -459,28 +472,28 @@ public class DirectInputHapticManager : IDisposable
                 {
                     parameters.Directions = new int[] { 0 }; // Straight
                 }
-                
+
                 effect = new Effect(_joystick, DirectInputFFB.GUID_ConstantForce, parameters);
                 Console.WriteLine("  ✓ Polar coordinates worked!");
             }
-            
+
             if (effect == null)
             {
                 Console.WriteLine("✗ Could not create effect");
                 return false;
             }
-            
+
             Console.WriteLine("Starting effect...");
             effect.Start();
-            
+
             Console.WriteLine("✓ Test effect playing! You should feel it now.");
-            
+
             // Wait for effect to complete
             System.Threading.Thread.Sleep(600);
-            
+
             effect.Stop();
             effect.Dispose();
-            
+
             Console.WriteLine("✓ Test complete!");
             return true;
         }
@@ -491,7 +504,7 @@ public class DirectInputHapticManager : IDisposable
             return false;
         }
     }
-    
+
     /// <summary>
     /// Create a constant force effect with envelope
     /// </summary>
@@ -499,7 +512,7 @@ public class DirectInputHapticManager : IDisposable
     {
         if (_joystick == null || _deviceAxes == null || _deviceAxes.Length == 0)
             return -1;
-        
+
         try
         {
             var parameters = new EffectParameters();
@@ -510,14 +523,13 @@ public class DirectInputHapticManager : IDisposable
             parameters.StartDelay = 0;
             parameters.TriggerButton = -1;
             parameters.TriggerRepeatInterval = 0;
-            
+
             // Use device's actual axes
             parameters.Axes = _deviceAxes;
-            
-            // Create direction array matching device axes
-            // Apply inversion if needed (some devices have opposite conventions)
-            int effectiveDirection = InvertDirection ? (direction + 18000) % 36000 : direction;
-            
+
+            // Direction conversion now handled in FFBEngine (clockwise/counter-clockwise)
+            // Just use the direction value directly
+
             int[] directions = new int[_deviceAxes.Length];
             if (_deviceAxes.Length == 1)
             {
@@ -525,14 +537,14 @@ public class DirectInputHapticManager : IDisposable
             }
             else if (_deviceAxes.Length >= 2)
             {
-                double angleRad = effectiveDirection * Math.PI / 18000.0;
+                double angleRad = direction * Math.PI / 18000.0;
                 directions[0] = (int)(Math.Cos(angleRad) * 10000);
                 directions[1] = (int)(Math.Sin(angleRad) * 10000);
                 for (int i = 2; i < _deviceAxes.Length; i++)
                     directions[i] = 0;
             }
             parameters.Directions = directions;
-            
+
             // Envelope
             var envelope = new Envelope();
             envelope.AttackLevel = 0;
@@ -540,17 +552,17 @@ public class DirectInputHapticManager : IDisposable
             envelope.FadeLevel = 0;
             envelope.FadeTime = (duration / 4) * 1000; // microseconds
             parameters.Envelope = envelope;
-            
+
             // Constant force
             var constantForce = new ConstantForce();
             constantForce.Magnitude = (int)((magnitude / 32767.0) * 10000);
             parameters.Parameters = constantForce;
-            
+
             var effect = new Effect(_joystick, DirectInputFFB.GUID_ConstantForce, parameters);
-            
+
             int effectId = _nextEffectId++;
             _activeEffects[effectId] = effect;
-            
+
             return effectId;
         }
         catch (Exception ex)
@@ -559,7 +571,7 @@ public class DirectInputHapticManager : IDisposable
             return -1;
         }
     }
-    
+
     /// <summary>
     /// Create a periodic (rumble/vibration) effect - perfect for lasers and missiles!
     /// </summary>
@@ -567,7 +579,7 @@ public class DirectInputHapticManager : IDisposable
     {
         if (_joystick == null || _deviceAxes == null || _deviceAxes.Length == 0)
             return -1;
-        
+
         try
         {
             var parameters = new EffectParameters();
@@ -578,16 +590,16 @@ public class DirectInputHapticManager : IDisposable
             parameters.StartDelay = 0;
             parameters.TriggerButton = -1;
             parameters.TriggerRepeatInterval = 0;
-            
+
             // Use device's actual axes
             parameters.Axes = _deviceAxes;
-            
+
             // Direction - all axes equally for vibration
             int[] directions = new int[_deviceAxes.Length];
             for (int i = 0; i < _deviceAxes.Length; i++)
                 directions[i] = 10000;
             parameters.Directions = directions;
-            
+
             // Envelope
             var envelope = new Envelope();
             envelope.AttackLevel = (int)((magnitude / 32767.0 / 2.0) * 10000);
@@ -595,7 +607,7 @@ public class DirectInputHapticManager : IDisposable
             envelope.FadeLevel = 0;
             envelope.FadeTime = fadeMs * 1000;
             parameters.Envelope = envelope;
-            
+
             // Periodic force
             var periodic = new PeriodicForce();
             periodic.Magnitude = (int)((magnitude / 32767.0) * 10000);
@@ -603,12 +615,12 @@ public class DirectInputHapticManager : IDisposable
             periodic.Phase = 0;
             periodic.Period = (1000000 / frequency);
             parameters.Parameters = periodic;
-            
+
             var effect = new Effect(_joystick, DirectInputFFB.GUID_Sine, parameters);
-            
+
             int effectId = _nextEffectId++;
             _activeEffects[effectId] = effect;
-            
+
             return effectId;
         }
         catch (Exception ex)
@@ -617,7 +629,7 @@ public class DirectInputHapticManager : IDisposable
             return -1;
         }
     }
-    
+
     /// <summary>
     /// Create a constant effect with custom envelope - good for impacts!
     /// </summary>
@@ -625,7 +637,7 @@ public class DirectInputHapticManager : IDisposable
     {
         if (_joystick == null || _deviceAxes == null || _deviceAxes.Length == 0)
             return -1;
-        
+
         try
         {
             var parameters = new EffectParameters();
@@ -636,13 +648,13 @@ public class DirectInputHapticManager : IDisposable
             parameters.StartDelay = 0;
             parameters.TriggerButton = -1;
             parameters.TriggerRepeatInterval = 0;
-            
+
             // Use device's actual axes
             parameters.Axes = _deviceAxes;
-            
-            // Direction with inversion support
-            int effectiveDirection = InvertDirection ? (direction + 18000) % 36000 : direction;
-            
+
+            // Direction conversion now handled in FFBEngine (clockwise/counter-clockwise)
+            // Just use the direction value directly
+
             int[] directions = new int[_deviceAxes.Length];
             if (_deviceAxes.Length == 1)
             {
@@ -650,14 +662,14 @@ public class DirectInputHapticManager : IDisposable
             }
             else if (_deviceAxes.Length >= 2)
             {
-                double angleRad = effectiveDirection * Math.PI / 18000.0;
+                double angleRad = direction * Math.PI / 18000.0;
                 directions[0] = (int)(Math.Cos(angleRad) * 10000);
                 directions[1] = (int)(Math.Sin(angleRad) * 10000);
                 for (int i = 2; i < _deviceAxes.Length; i++)
                     directions[i] = 0;
             }
             parameters.Directions = directions;
-            
+
             // Envelope - sharp attack, long fade for impact
             var envelope = new Envelope();
             envelope.AttackLevel = (int)((magnitude / 32767.0 / 3.0) * 10000);
@@ -665,17 +677,17 @@ public class DirectInputHapticManager : IDisposable
             envelope.FadeLevel = 0;
             envelope.FadeTime = fadeMs * 1000;
             parameters.Envelope = envelope;
-            
+
             // Constant force
             var constantForce = new ConstantForce();
             constantForce.Magnitude = (int)((magnitude / 32767.0) * 10000);
             parameters.Parameters = constantForce;
-            
+
             var effect = new Effect(_joystick, DirectInputFFB.GUID_ConstantForce, parameters);
-            
+
             int effectId = _nextEffectId++;
             _activeEffects[effectId] = effect;
-            
+
             return effectId;
         }
         catch (Exception ex)
@@ -684,30 +696,30 @@ public class DirectInputHapticManager : IDisposable
             return -1;
         }
     }
-    
+
     /// <summary>
     /// Create a combined explosion effect - impact + rumble with separate controls
     /// Returns array of effect IDs [impact, rumble]
     /// </summary>
-    public int[] CreateExplosionEffect(int baseMagnitude, int impactDuration, int rumbleDuration, 
-        int impactAttackMs, int impactFadeMs, int rumbleAttackMs, int rumbleFadeMs, 
+    public int[] CreateExplosionEffect(int baseMagnitude, int impactDuration, int rumbleDuration,
+        int impactAttackMs, int impactFadeMs, int rumbleAttackMs, int rumbleFadeMs,
         int direction, int rumbleFreq, float impactMultiplier, float rumbleMultiplier)
     {
         var effectIds = new int[2];
-        
+
         // Create impact effect
         int impactMag = (int)(baseMagnitude * impactMultiplier);
         impactMag = Math.Clamp(impactMag, 0, 32767);
         effectIds[0] = CreateImpactEffect(impactMag, impactDuration, impactAttackMs, impactFadeMs, direction);
-        
+
         // Create rumble effect
         int rumbleMag = (int)(baseMagnitude * rumbleMultiplier);
         rumbleMag = Math.Clamp(rumbleMag, 0, 32767);
         effectIds[1] = CreatePeriodicEffect(rumbleMag, rumbleDuration, rumbleFreq, rumbleAttackMs, rumbleFadeMs);
-        
+
         return effectIds;
     }
-    
+
     /// <summary>
     /// Play an effect
     /// </summary>
@@ -715,7 +727,7 @@ public class DirectInputHapticManager : IDisposable
     {
         if (!_activeEffects.TryGetValue(effectId, out var effect))
             return false;
-        
+
         try
         {
             effect.Start(iterations);
@@ -727,7 +739,7 @@ public class DirectInputHapticManager : IDisposable
             return false;
         }
     }
-    
+
     /// <summary>
     /// Stop an effect
     /// </summary>
@@ -745,9 +757,67 @@ public class DirectInputHapticManager : IDisposable
             }
         }
     }
-    
+
     /// <summary>
-    /// Destroy an effect and free resources
+    /// Update the magnitude of an existing periodic effect in-place via SetParameters.
+    /// Used to keep a long-running laser damage effect at the correct intensity as
+    /// damage ticks arrive with varying amounts throughout the beam duration.
+    /// </summary>
+    public void UpdateEffectMagnitude(int effectId, int magnitude, int attackMs, int fadeMs)
+    {
+        if (!_activeEffects.TryGetValue(effectId, out var effect))
+            return;
+
+        try
+        {
+            var parameters = new EffectParameters();
+            parameters.Flags = EffectFlags.Cartesian | EffectFlags.ObjectOffsets;
+
+            var envelope = new Envelope();
+            envelope.AttackLevel = (int)((magnitude / 32767.0 / 2.0) * 10000);
+            envelope.AttackTime = attackMs * 1000;
+            envelope.FadeLevel = 0;
+            envelope.FadeTime = fadeMs * 1000;
+            parameters.Envelope = envelope;
+
+            var periodic = new PeriodicForce();
+            periodic.Magnitude = (int)((magnitude / 32767.0) * 10000);
+            periodic.Offset = 0;
+            periodic.Phase = 0;
+            periodic.Period = 0; // 0 = keep existing period unchanged
+            parameters.Parameters = periodic;
+
+            effect.SetParameters(parameters,
+                EffectParameterFlags.TypeSpecificParameters | EffectParameterFlags.Envelope);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"✗ Failed to update effect magnitude {effectId}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Ensure the device's force feedback output is active.
+    /// Some drivers pause FF output after effect.Stop() — calling Continue() before
+    /// starting the next effect guarantees the device is in an output-enabled state.
+    /// </summary>
+    public void ContinueDevice()
+    {
+        try
+        {
+            _joystick?.SendForceFeedbackCommand(ForceFeedbackCommand.Continue);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"✗ Failed to continue device: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Destroy an effect and free resources.
+    /// Callers that need to halt a running effect must call StopEffect first.
+    /// DestroyEffect does NOT call Stop() — avoids a redundant driver round-trip
+    /// for the common case where the effect has already been stopped or naturally expired.
     /// </summary>
     public void DestroyEffect(int effectId)
     {
@@ -755,7 +825,6 @@ public class DirectInputHapticManager : IDisposable
         {
             try
             {
-                effect.Stop();
                 effect.Dispose();
                 _activeEffects.Remove(effectId);
             }
@@ -765,7 +834,7 @@ public class DirectInputHapticManager : IDisposable
             }
         }
     }
-    
+
     /// <summary>
     /// Stop all effects
     /// </summary>
@@ -780,7 +849,7 @@ public class DirectInputHapticManager : IDisposable
             catch { }
         }
     }
-    
+
     private void ReleaseDevice()
     {
         // Clean up all effects
@@ -794,7 +863,7 @@ public class DirectInputHapticManager : IDisposable
             catch { }
         }
         _activeEffects.Clear();
-        
+
         if (_joystick != null)
         {
             try
@@ -805,20 +874,20 @@ public class DirectInputHapticManager : IDisposable
             catch { }
             _joystick = null;
         }
-        
+
         _selectedDeviceIndex = -1;
     }
-    
+
     public void Dispose()
     {
         ReleaseDevice();
-        
+
         if (_directInput != null)
         {
             _directInput.Dispose();
             _directInput = null;
         }
-        
+
         IsInitialized = false;
     }
 }
