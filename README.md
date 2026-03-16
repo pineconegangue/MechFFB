@@ -1,15 +1,17 @@
 Setup guide:
 
-If Using vJoy or any virtual controller:
+**If Using vJoy or any virtual controller:**
 
 In MechFFB: Select your actual device, do not select vJoy or any other virtual controller
 
 In MW5: You can still virtual controllers such as Joystick Gremlin or UCR for inputs
 
-YOU WILL NEED THE MECHSHAKER MOD FOR THIS TO WORK - https://www.nexusmods.com/mechwarrior5mercenaries/mods/1029
+**YOU WILL NEED THE MECHSHAKER MOD FOR THIS TO WORK - https://www.nexusmods.com/mechwarrior5mercenaries/mods/1029**
 
 
-Setup (NEW - MAKE SURE TO READ):
+
+
+**Setup (NEW - MAKE SURE TO READ):**
 
 Download and set up MechShaker - https://www.nexusmods.com/mechwarrior5mercenaries/mods/1029 - MechShakerRelay MUST be active. MechShaker app itself does not need to run for MechFFB to work, but if you have bass shakers this is non-negotiable really - put them to work and go turn MechShaker on.
 
@@ -32,7 +34,9 @@ Enable "Invert Axis" to invert force feedback (only if your device requires this
 
 
 
-Features
+
+
+**Features**
 
 DirectInput backend (confirmed working on MOZA AB9, VPForce Rhino, Microsoft Sidewinder, yet to test other devices)
 
@@ -53,7 +57,9 @@ Settings autosave after adjustments
 
 
 
-Quirks/issues:
+
+
+**Quirks/issues:**
 
 The "Events" count on the right will always read 0 regardless of whether events are successfully being read - refer to the debug window instead
 
@@ -65,7 +71,9 @@ YAML and YAW introduce different firing modes for missiles. Streak LRMs can be f
 
 
 
-How it works (foundation built upon MechShaker)
+
+
+**How it works (foundation built upon MechShaker)**
 
 MechShakerRelay, a blueprint mod for the game, gathers on-tick data and listens for a variety of in game events, packages up necessary details, and calls a parameterised OnTelemetry event that performs no immediate actions
 
