@@ -1,88 +1,87 @@
-Setup guide:
+# MechFFB
 
-**If Using vJoy or any virtual controller:**
+Force feedback effects for MechWarrior 5, built on top of [MechShaker](https://www.nexusmods.com/mechwarrior5mercenaries/mods/1029).
 
-In MechFFB: Select your actual device, do not select vJoy or any other virtual controller
+---
 
-In MW5: You can still virtual controllers such as Joystick Gremlin or UCR for inputs
+## ⚠️ Requirement
 
-**YOU WILL NEED THE MECHSHAKER MOD FOR THIS TO WORK - https://www.nexusmods.com/mechwarrior5mercenaries/mods/1029**
+**MechShaker is required for MechFFB to work.**
+Download it here: https://www.nexusmods.com/mechwarrior5mercenaries/mods/1029
 
+MechShakerRelay **must** be active. The MechShaker app itself doesn't need to be running — but if you have bass shakers, you should run it too.
 
+---
 
+## Setup
 
-**Setup (NEW - MAKE SURE TO READ):**
+1. **Download and configure MechShaker**
+   Get it from https://www.nexusmods.com/mechwarrior5mercenaries/mods/1029 and ensure MechShakerRelay is active.
 
-Download and set up MechShaker - https://www.nexusmods.com/mechwarrior5mercenaries/mods/1029 - MechShakerRelay MUST be active. MechShaker app itself does not need to run for MechFFB to work, but if you have bass shakers this is non-negotiable really - put them to work and go turn MechShaker on.
+2. **Download the latest MechFFB release**
+   Extract it anywhere you like.
 
-Download latest MechFFB release, extract anywhere you like
+3. **Replace MechShakerRelay.pak**
+   In your MW5 mods folder, navigate to `MechShakerRelay > Paks` and replace `MechShakerRelay.pak` with the one included in the MechFFB release `.zip`.
 
-NEW STEP: Replace MechShakerRelay.pak in the MW5 mods folder loacted in MechShakerRelay>Paks with the MechShakerRelay.pak included in the latest release .zip file.
+4. **Run MechFFB.exe**
 
-Run MechFFB.exe
+5. **Select your FFB joystick**
+   Do not select a virtual controller (e.g. vJoy) — select your actual physical device.
 
-Select your FFB Joystick (do not select your virtual controller)
+6. **Click "Test Device"**
+   Verifies that FFB output is working. This can be finicky on some devices — don't worry if it doesn't respond.
 
-Click "Test Device" to verify FFB output is actually working. (This seems to be finicky on some devices, don't worry if it doesn't work)
+7. **Click "Start Engine"**
 
-Click "Start Engine"
+8. **Launch MW5** and confirm the MechShaker mod is enabled.
 
-Launch MW5 and ensure MechShaker mod is enabled
+9. **Configure Invert Axis if needed**
+   Weapon fire should pull the stick *towards* you. If it pushes *away*, enable "Invert Axis".
+   *(Currently confirmed working on Moza AB9 for v3.0.0)*
 
-Enable "Invert Axis" to invert force feedback (only if your device requires this - weapon fire should pull towards you, not away from you - enable invert axis if weapon fire pulls away from you) - Only confirmed working on Moza AB9 for version 3.0.0.
+---
 
+## Virtual Controller Note
 
+If you use vJoy or another virtual controller:
 
+- In **MechFFB**: select your real physical device — do *not* select vJoy or any virtual controller.
+- In **MW5**: virtual controllers (e.g. Joystick Gremlin, UCR) can still be used for inputs as normal.
 
+---
 
+## Features
 
-**Features**
+- DirectInput backend *(confirmed on: MOZA AB9, VPForce Rhino, Microsoft Sidewinder — others untested)*
+- Weapon recoil effects
+- Damage impact effects with directional feedback
+- Movement / footstep effects
+- Destruction effects (critical mechs, explosive infrastructure, stomping tanks)
+- Simple intensity controls
+- Advanced per-weapon tuning
+- Settings auto-save after adjustments
 
-DirectInput backend (confirmed working on MOZA AB9, VPForce Rhino, Microsoft Sidewinder, yet to test other devices)
+---
 
-Weapon recoil effects
+## Known Quirks
 
-Damage impact effects, now with direction
+- The **Events** counter on the right always shows `0`, even when events are being read successfully — check the debug window instead.
+- The status text will continue to say **"Waiting for MechWarrior 5..."** even after a successful connection.
+- YAML and YAW introduce different missile firing modes. Streak LRMs firing as individual missiles are mapped correctly. Normal LRMs firing in salvos only register as a single event — not per missile.
 
-Simple intensity controls
+---
 
-Advanced per-weapon tuning
+## How It Works
 
-Movement/footstep effects
+MechFFB is built on top of the MechShaker foundation:
 
-Destruction effects (when walking over mechs going critical, explosive infrastructure or stomping on tanks)
+1. **MechShakerRelay** (blueprint mod) collects per-tick game data, listens for in-game events, packages the relevant details, and fires a parameterised `OnTelemetry` event.
 
-Settings autosave after adjustments
+2. **MechShakerBridge** (C++ plugin) is injected into the game via one of two methods:
+   - As a **UEVR plugin** if using MechWarriorVR — see https://github.com/sicsix/MW5-UEVR-Plugins
+   - As a plugin for **UnrealModLoader** otherwise
 
+3. MechShakerBridge hooks into the `OnTelemetry` event and writes telemetry data to a **memory-mapped file**.
 
-
-
-
-
-**Quirks/issues:**
-
-The "Events" count on the right will always read 0 regardless of whether events are successfully being read - refer to the debug window instead
-
-In similar fashion, this text will still say "Waiting for Mechwarrior 5..." even after it has already successfully connected
-
-YAML and YAW introduce different firing modes for missiles. Streak LRMs can be fired as individual missiles and the FFB is mapped appropriately, but normal LRMs firing in salvos does not register separate events at this stage, so you will only get one 'missile firing' event.
-
-
-
-
-
-
-
-**How it works (foundation built upon MechShaker)**
-
-MechShakerRelay, a blueprint mod for the game, gathers on-tick data and listens for a variety of in game events, packages up necessary details, and calls a parameterised OnTelemetry event that performs no immediate actions
-
-MechShakerBridge, a C++ plugin, is injected into the game using one of two methods.
-
-If using MechWarriorVR, as a UEVR plugin - https://github.com/sicsix/MW5-UEVR-Plugins
-
-Otherwise, as a plugin for UnrealModLoader
-
-MechShakerBridge, when using the UEVR plugin, hooks directly into the OnTelemetry blueprint event. It then writes this telemetry data out to a memory mapped file.
-
-MechFFB reads this memory mapped file and converts in game events into force feedback output
+4. **MechFFB** reads that memory-mapped file and converts in-game events into force feedback output.
