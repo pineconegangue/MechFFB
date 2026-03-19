@@ -1,10 +1,10 @@
 # MechFFB
 
-Force feedback effects for MechWarrior 5, built on top of [MechShaker](https://www.nexusmods.com/mechwarrior5mercenaries/mods/1029).
+Force feedback effects for MechWarrior 5, built on top of [MechShaker].
 
 ---
 
-## ⚠️ Requirement
+## Requirement
 
 **MechShaker is required for MechFFB to work.**
 Download it here: https://www.nexusmods.com/mechwarrior5mercenaries/mods/1029
