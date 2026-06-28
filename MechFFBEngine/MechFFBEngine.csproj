@@ -18,4 +18,15 @@
     <ProjectReference Include="..\MechFFBReader\MechFFBReader.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Per-weapon recoil profile table — copied next to the running app so it
+         can be edited without a rebuild. Loaded by WeaponProfiles.Load(). -->
+    <None Update="weapon_profiles.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="weapon_profiles.mods.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

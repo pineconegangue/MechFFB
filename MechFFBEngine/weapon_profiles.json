@@ -1,0 +1,413 @@
+{
+  "_comment": "Per-weapon recoil profiles. Lookup key is (shots=F0, pellets=F2, impulse=F5) \u2014 these are quirk-stable. baseSpeed (F3) is NOT in the key (live speed is scaled by velocity skills/quirks); it is only a nearest-match tie-break when several weapons share a key. Edit canonicalImpulse to retune. Unknown weapons fall back to raw impulse; the recoil formula self-clamps so nothing overflows. Gauss=4150.",
+  "weapons": [
+    {
+      "name": "Autocannon2",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 700,
+      "baseSpeed": 120000,
+      "canonicalImpulse": 700
+    },
+    {
+      "name": "Autocannon2_Burst",
+      "shots": 4,
+      "pellets": 1,
+      "impulse": 350,
+      "baseSpeed": 120000,
+      "canonicalImpulse": 350
+    },
+    {
+      "name": "Autocannon2_Turret",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 600,
+      "baseSpeed": 120000,
+      "canonicalImpulse": 700
+    },
+    {
+      "name": "Autocannon2_VTOL",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 600,
+      "baseSpeed": 120000,
+      "canonicalImpulse": 700
+    },
+    {
+      "name": "Autocannon5",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 1250,
+      "baseSpeed": 95000,
+      "canonicalImpulse": 1250
+    },
+    {
+      "name": "Autocannon5_Burst",
+      "shots": 3,
+      "pellets": 1,
+      "impulse": 400,
+      "baseSpeed": 95000,
+      "canonicalImpulse": 400
+    },
+    {
+      "name": "Autocannon5_Scorpion",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 1250,
+      "baseSpeed": 95000,
+      "canonicalImpulse": 1250
+    },
+    {
+      "name": "AutoCannon10",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 2500,
+      "baseSpeed": 60000,
+      "canonicalImpulse": 2500
+    },
+    {
+      "name": "AutoCannon10_Burst",
+      "shots": 6,
+      "pellets": 1,
+      "impulse": 450,
+      "baseSpeed": 60000,
+      "canonicalImpulse": 450
+    },
+    {
+      "name": "AutoCannon10_Turret",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 2500,
+      "baseSpeed": 60000,
+      "canonicalImpulse": 2500
+    },
+    {
+      "name": "Autocannon20",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 5000,
+      "baseSpeed": 40000,
+      "canonicalImpulse": 5000
+    },
+    {
+      "name": "Autocannon20_Burst",
+      "shots": 12,
+      "pellets": 1,
+      "impulse": 500,
+      "baseSpeed": 40000,
+      "canonicalImpulse": 500
+    },
+    {
+      "name": "UltraAutocannon5",
+      "shots": 4,
+      "pellets": 1,
+      "impulse": 450,
+      "baseSpeed": 120000,
+      "canonicalImpulse": 400
+    },
+    {
+      "name": "UltraAutocannon5_Single",
+      "shots": 1,
+      "pellets": 1,
+      "impulse": 450,
+      "baseSpeed": 120000,
+      "canonicalImpulse": 1250
+    },
+    {
+      "name": "LBXAutocannon10_Cluster",
+      "shots": 0,
+      "pellets": 13,
+      "impulse": 300,
+      "baseSpeed": 80000,
+      "canonicalImpulse": 2500
+    },
+    {
+      "name": "LBXAutocannon10_Cluster_Burst",
+      "shots": 3,
+      "pellets": 5,
+      "impulse": 300,
+      "baseSpeed": 80000,
+      "canonicalImpulse": 450
+    },
+    {
+      "name": "LBXAutocannon10_SolidSlug",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 2500,
+      "baseSpeed": 80000,
+      "canonicalImpulse": 2500
+    },
+    {
+      "name": "LBXAutocannon10_SolidSlug_Burst",
+      "shots": 4,
+      "pellets": 1,
+      "impulse": 2500,
+      "baseSpeed": 80000,
+      "canonicalImpulse": 450
+    },
+    {
+      "name": "LightRifle",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 1500,
+      "baseSpeed": 50000,
+      "canonicalImpulse": 1250
+    },
+    {
+      "name": "MediumRifle",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 3000,
+      "baseSpeed": 90000,
+      "canonicalImpulse": 2500
+    },
+    {
+      "name": "HeavyRifle",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 6000,
+      "baseSpeed": 120000,
+      "canonicalImpulse": 5000
+    },
+    {
+      "name": "GaussRifle",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 3000,
+      "baseSpeed": 200000,
+      "canonicalImpulse": 4150
+    },
+    {
+      "name": "Autocannon2_0",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 700,
+      "baseSpeed": 120000,
+      "canonicalImpulse": 700
+    },
+    {
+      "name": "LightRifle_Burst",
+      "shots": 5,
+      "pellets": 1,
+      "impulse": 1500,
+      "baseSpeed": 50000,
+      "canonicalImpulse": 400
+    },
+    {
+      "name": "MediumRifle_Burst",
+      "shots": 4,
+      "pellets": 1,
+      "impulse": 3000,
+      "baseSpeed": 90000,
+      "canonicalImpulse": 450
+    },
+    {
+      "name": "HeavyRifle_Burst",
+      "shots": 3,
+      "pellets": 1,
+      "impulse": 6000,
+      "baseSpeed": 120000,
+      "canonicalImpulse": 500
+    },
+    {
+      "name": "Autocannon2_Auto",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 700,
+      "baseSpeed": 120000,
+      "canonicalImpulse": 700
+    },
+    {
+      "name": "Autocannon5_Auto",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 1250,
+      "baseSpeed": 95000,
+      "canonicalImpulse": 1250
+    },
+    {
+      "name": "AutoCannon10_Auto",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 2500,
+      "baseSpeed": 60000,
+      "canonicalImpulse": 2500
+    },
+    {
+      "name": "Autocannon20_Auto",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 5000,
+      "baseSpeed": 40000,
+      "canonicalImpulse": 5000
+    },
+    {
+      "name": "C-UltraAutocannon2",
+      "shots": 4,
+      "pellets": 1,
+      "impulse": 700,
+      "baseSpeed": 170000,
+      "canonicalImpulse": 350
+    },
+    {
+      "name": "C-UltraAutocannon5",
+      "shots": 4,
+      "pellets": 1,
+      "impulse": 450,
+      "baseSpeed": 140000,
+      "canonicalImpulse": 400
+    },
+    {
+      "name": "C-UltraAutocannon10",
+      "shots": 8,
+      "pellets": 1,
+      "impulse": 2500,
+      "baseSpeed": 90000,
+      "canonicalImpulse": 450
+    },
+    {
+      "name": "C-UltraAutocannon20",
+      "shots": 16,
+      "pellets": 1,
+      "impulse": 5000,
+      "baseSpeed": 80000,
+      "canonicalImpulse": 500
+    },
+    {
+      "name": "C-UltraAutocannon2_SolidSlug",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 700,
+      "baseSpeed": 135000,
+      "canonicalImpulse": 700
+    },
+    {
+      "name": "C-UltraAutocannon5_SolidSlug",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 450,
+      "baseSpeed": 130000,
+      "canonicalImpulse": 1250
+    },
+    {
+      "name": "C-UltraAutocannon10_SolidSlug",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 2500,
+      "baseSpeed": 80000,
+      "canonicalImpulse": 2500
+    },
+    {
+      "name": "C-UltraAutocannon20_SolidSlug",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 5000,
+      "baseSpeed": 50000,
+      "canonicalImpulse": 5000
+    },
+    {
+      "name": "C-LBXAutocannon2_Cluster",
+      "shots": 0,
+      "pellets": 3,
+      "impulse": 300,
+      "baseSpeed": 170000,
+      "canonicalImpulse": 700
+    },
+    {
+      "name": "C-LBXAutocannon5_Cluster",
+      "shots": 0,
+      "pellets": 7,
+      "impulse": 300,
+      "baseSpeed": 140000,
+      "canonicalImpulse": 1250
+    },
+    {
+      "name": "C-LBXAutocannon10_Cluster",
+      "shots": 0,
+      "pellets": 13,
+      "impulse": 300,
+      "baseSpeed": 90000,
+      "canonicalImpulse": 2500
+    },
+    {
+      "name": "C-LBXAutocannon20_Cluster",
+      "shots": 0,
+      "pellets": 25,
+      "impulse": 300,
+      "baseSpeed": 80000,
+      "canonicalImpulse": 5000
+    },
+    {
+      "name": "C-LBXAutocannon2_SolidSlug",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 300,
+      "baseSpeed": 150000,
+      "canonicalImpulse": 700
+    },
+    {
+      "name": "C-LBXAutocannon5_SolidSlug",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 300,
+      "baseSpeed": 120000,
+      "canonicalImpulse": 1250
+    },
+    {
+      "name": "C-LBXAutocannon10_SolidSlug",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 2500,
+      "baseSpeed": 80000,
+      "canonicalImpulse": 2500
+    },
+    {
+      "name": "C-LBXAutocannon20_SolidSlug",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 300,
+      "baseSpeed": 50000,
+      "canonicalImpulse": 5000
+    },
+    {
+      "name": "C-LBXAutocannon2_Burst",
+      "shots": 4,
+      "pellets": 1,
+      "impulse": 300,
+      "baseSpeed": 180000,
+      "canonicalImpulse": 350
+    },
+    {
+      "name": "C-LBXAutocannon5_Burst",
+      "shots": 3,
+      "pellets": 1,
+      "impulse": 300,
+      "baseSpeed": 140000,
+      "canonicalImpulse": 400
+    },
+    {
+      "name": "C-LBXAutocannon10_Burst",
+      "shots": 6,
+      "pellets": 1,
+      "impulse": 450,
+      "baseSpeed": 90000,
+      "canonicalImpulse": 450
+    },
+    {
+      "name": "C-LBXAutocannon20_Burst",
+      "shots": 12,
+      "pellets": 1,
+      "impulse": 300,
+      "baseSpeed": 80000,
+      "canonicalImpulse": 500
+    },
+    {
+      "name": "C-GaussRifle",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 3000,
+      "baseSpeed": 200000,
+      "canonicalImpulse": 4150
+    }
+  ]
+}

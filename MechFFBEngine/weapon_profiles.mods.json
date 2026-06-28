@@ -1,0 +1,357 @@
+{
+  "_comment": "YAWCE mod weapon profiles. Auto-mapped AC/UAC/LBX/Light-AC families + HAG to canonical tiers (same rules as vanilla). Exotic single-shot weapons (Gauss family, Railgun, Rotary/RAC, Plasma, Taser, Magshot, SB-Gauss) are intentionally OMITTED so they fall through to the self-clamping formula; add entries here to override them. Loaded on top of weapon_profiles.json by WeaponProfiles.Load().",
+  "weapons": [
+    {
+      "name": "Ultra79Autocannon2_Burst",
+      "shots": 2,
+      "pellets": 1,
+      "impulse": 700,
+      "baseSpeed": 145000,
+      "canonicalImpulse": 350
+    },
+    {
+      "name": "Ultra79Autocannon10",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 750,
+      "baseSpeed": 80000,
+      "canonicalImpulse": 2500
+    },
+    {
+      "name": "Ultra79Autocannon10_Burst",
+      "shots": 6,
+      "pellets": 1,
+      "impulse": 750,
+      "baseSpeed": 80000,
+      "canonicalImpulse": 450
+    },
+    {
+      "name": "Ultra79Autocannon20",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 1000,
+      "baseSpeed": 55000,
+      "canonicalImpulse": 5000
+    },
+    {
+      "name": "Ultra79Autocannon20_Burst",
+      "shots": 8,
+      "pellets": 1,
+      "impulse": 1000,
+      "baseSpeed": 55000,
+      "canonicalImpulse": 500
+    },
+    {
+      "name": "LBX79Autocannon10_Burst",
+      "shots": 6,
+      "pellets": 13,
+      "impulse": 300,
+      "baseSpeed": 80000,
+      "canonicalImpulse": 450
+    },
+    {
+      "name": "LBX79Autocannon10_Burst_SolidSlug",
+      "shots": 6,
+      "pellets": 1,
+      "impulse": 300,
+      "baseSpeed": 80000,
+      "canonicalImpulse": 450
+    },
+    {
+      "name": "LBX79Autocannon20_Cluster",
+      "shots": 0,
+      "pellets": 26,
+      "impulse": 300,
+      "baseSpeed": 53333,
+      "canonicalImpulse": 5000
+    },
+    {
+      "name": "LBX79Autocannon20_Burst",
+      "shots": 12,
+      "pellets": 26,
+      "impulse": 300,
+      "baseSpeed": 53333,
+      "canonicalImpulse": 500
+    },
+    {
+      "name": "LBX79Autocannon5_Burst",
+      "shots": 3,
+      "pellets": 7,
+      "impulse": 300,
+      "baseSpeed": 125000,
+      "canonicalImpulse": 400
+    },
+    {
+      "name": "LBX79Autocannon2_Cluster",
+      "shots": 0,
+      "pellets": 4,
+      "impulse": 200,
+      "baseSpeed": 150000,
+      "canonicalImpulse": 700
+    },
+    {
+      "name": "LBX79Autocannon2_SolidSlug",
+      "shots": 0,
+      "pellets": 1,
+      "impulse": 625,
+      "baseSpeed": 150000,
+      "canonicalImpulse": 700
+    },
+    {
+      "name": "LBX79Autocannon2_Burst",
+      "shots": 4,
+      "pellets": 4,
+      "impulse": 200,
+      "baseSpeed": 150000,
+      "canonicalImpulse": 350
+    },
+    {
+      "name": "Ultra79Autocannon5_Prototype",
+      "shots": 6,
+      "pellets": 1,
+      "impulse": 1250,
+      "baseSpeed": 120000,
+      "canonicalImpulse": 400
+    },
+    {
+      "name": "LightAutocannon5_Burst",
+      "shots": 3,
+      "pellets": 1,
+      "impulse": 1250,
+      "baseSpeed": 80000,
+      "canonicalImpulse": 400
+    },
+    {
+      "name": "LightAutocannon10_Burst",
+      "shots": 6,
+      "pellets": 1,
+      "impulse": 2500,
+      "baseSpeed": 50000,
+      "canonicalImpulse": 450
+    },
+    {
+      "name": "LightAutocannon20_Burst",
+      "shots": 12,
+      "pellets": 1,
+      "impulse": 5000,
+      "baseSpeed": 35000,
+      "canonicalImpulse": 500
+    },
+    {
+      "name": "CAutocannon10",
+      "shots": 2,
+      "pellets": 1,
+      "impulse": 2500,
+      "baseSpeed": 60000,
+      "canonicalImpulse": 450
+    },
+    {
+      "name": "CAutocannon20",
+      "shots": 3,
+      "pellets": 1,
+      "impulse": 5000,
+      "baseSpeed": 45000,
+      "canonicalImpulse": 500
+    },
+    {
+      "name": "CUltraAutocannon5",
+      "shots": 1,
+      "pellets": 1,
+      "impulse": 700,
+      "baseSpeed": 120000,
+      "canonicalImpulse": 1250
+    },
+    {
+      "name": "CUltraAutocannon10",
+      "shots": 1,
+      "pellets": 1,
+      "impulse": 750,
+      "baseSpeed": 80000,
+      "canonicalImpulse": 2500
+    },
+    {
+      "name": "CUltraAutocannon20",
+      "shots": 1,
+      "pellets": 1,
+      "impulse": 1000,
+      "baseSpeed": 55000,
+      "canonicalImpulse": 5000
+    },
+    {
+      "name": "CLBXAutocannon2",
+      "shots": 0,
+      "pellets": 4,
+      "impulse": 200,
+      "baseSpeed": 160000,
+      "canonicalImpulse": 700
+    },
+    {
+      "name": "CLBXAutocannon2_Burst",
+      "shots": 4,
+      "pellets": 4,
+      "impulse": 200,
+      "baseSpeed": 160000,
+      "canonicalImpulse": 350
+    },
+    {
+      "name": "CLBXAutocannon5_Burst",
+      "shots": 3,
+      "pellets": 7,
+      "impulse": 300,
+      "baseSpeed": 125000,
+      "canonicalImpulse": 400
+    },
+    {
+      "name": "CLBXAutocannon10_Burst",
+      "shots": 5,
+      "pellets": 13,
+      "impulse": 300,
+      "baseSpeed": 80000,
+      "canonicalImpulse": 450
+    },
+    {
+      "name": "CLBXAutocannon20",
+      "shots": 0,
+      "pellets": 26,
+      "impulse": 300,
+      "baseSpeed": 53333,
+      "canonicalImpulse": 5000
+    },
+    {
+      "name": "CLBXAutocannon20_Burst",
+      "shots": 10,
+      "pellets": 26,
+      "impulse": 300,
+      "baseSpeed": 53333,
+      "canonicalImpulse": 500
+    },
+    {
+      "name": "CGaussRifle_HAG10",
+      "shots": 2,
+      "pellets": 1,
+      "impulse": 300,
+      "baseSpeed": 220000,
+      "canonicalImpulse": 450
+    },
+    {
+      "name": "CGaussRifle_HAG30",
+      "shots": 6,
+      "pellets": 1,
+      "impulse": 300,
+      "baseSpeed": 220000,
+      "canonicalImpulse": 500
+    },
+    {
+      "name": "CGaussRifle_HAG40",
+      "shots": 8,
+      "pellets": 1,
+      "impulse": 300,
+      "baseSpeed": 220000,
+      "canonicalImpulse": 500
+    },
+    {
+      "name": "CProtoAC4",
+      "shots": 2,
+      "pellets": 1,
+      "impulse": 700,
+      "baseSpeed": 95000,
+      "canonicalImpulse": 400
+    },
+    {
+      "name": "CGaussRifle_HAG10_0",
+      "shots": 2,
+      "pellets": 5,
+      "impulse": 300,
+      "baseSpeed": 220000,
+      "canonicalImpulse": 450
+    },
+    {
+      "name": "CGaussRifle_HAG20_0",
+      "shots": 4,
+      "pellets": 5,
+      "impulse": 300,
+      "baseSpeed": 220000,
+      "canonicalImpulse": 500
+    },
+    {
+      "name": "CGaussRifle_HAG30_0",
+      "shots": 6,
+      "pellets": 5,
+      "impulse": 300,
+      "baseSpeed": 220000,
+      "canonicalImpulse": 500
+    },
+    {
+      "name": "CGaussRifle_HAG40_0",
+      "shots": 8,
+      "pellets": 5,
+      "impulse": 300,
+      "baseSpeed": 220000,
+      "canonicalImpulse": 500
+    },
+    {
+      "name": "LBXAutocannon2P",
+      "shots": 0,
+      "pellets": 4,
+      "impulse": 200,
+      "baseSpeed": 150000,
+      "canonicalImpulse": 700
+    },
+    {
+      "name": "LBXAutocannon20P",
+      "shots": 0,
+      "pellets": 26,
+      "impulse": 300,
+      "baseSpeed": 53333,
+      "canonicalImpulse": 5000
+    },
+    {
+      "name": "UltraAutocannon10P",
+      "shots": 8,
+      "pellets": 1,
+      "impulse": 750,
+      "baseSpeed": 80000,
+      "canonicalImpulse": 450
+    },
+    {
+      "name": "UltraAutocannon20P",
+      "shots": 15,
+      "pellets": 1,
+      "impulse": 1000,
+      "baseSpeed": 55000,
+      "canonicalImpulse": 500
+    },
+    {
+      "name": "AC2_Caseless",
+      "shots": 4,
+      "pellets": 1,
+      "impulse": 200,
+      "baseSpeed": 120000,
+      "canonicalImpulse": 350
+    },
+    {
+      "name": "AC5_Caseless",
+      "shots": 6,
+      "pellets": 1,
+      "impulse": 625,
+      "baseSpeed": 95000,
+      "canonicalImpulse": 400
+    },
+    {
+      "name": "AC10_Caseless",
+      "shots": 8,
+      "pellets": 1,
+      "impulse": 1250,
+      "baseSpeed": 60000,
+      "canonicalImpulse": 450
+    },
+    {
+      "name": "AC20_Caseless",
+      "shots": 10,
+      "pellets": 1,
+      "impulse": 2500,
+      "baseSpeed": 40000,
+      "canonicalImpulse": 500
+    }
+  ]
+}

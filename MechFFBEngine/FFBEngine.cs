@@ -24,6 +24,7 @@ public class FFBEngine : IDisposable
 {
     private readonly TelemetryReader _telemetryReader;
     private readonly FFBConfiguration _configuration;
+    private readonly WeaponProfiles _weaponProfiles;
     private DirectInputHapticManager _hapticManager;
 
     // ── Phase 1: dedicated FFB thread ────────────────────────────────────────
@@ -125,6 +126,7 @@ public class FFBEngine : IDisposable
         Console.WriteLine("TelemetryReader created");
         _configuration = FFBConfiguration.Load();
         Console.WriteLine("Configuration loaded");
+        _weaponProfiles = WeaponProfiles.Load();
         _hapticManager = new DirectInputHapticManager();
         Console.WriteLine("DirectInputHapticManager created");
     }
@@ -440,7 +442,7 @@ public class FFBEngine : IDisposable
         // Damage-received batches: use quadratic formula on total damage sum so that
         //   LBX/10 (10×1dmg = 10 total) feels identical to AC/10 (1×10dmg = 10 total).
         //   Formula: max(slope × totalDamage^power, floor) × TypeIntensity
-        //   slope=824, power=1.2 → AC/2→floor(8000), AC/10→13058, AC/20→30000
+        //   slope=5200.8, power=0.585, floor=10000 (see DAMAGE_* constants below)
         int count = batch.Count;
         double scaledMag;
         if (batch.ApplyWeaponScaling && count > 1)
@@ -1170,19 +1172,28 @@ public class FFBEngine : IDisposable
                 {
                     // Power curve tuned to F5 impulse values from game telemetry:
                     // AC/2 (700) → ~10000, AC/5 (1250) → ~13826, AC/10 (2500) → ~20366, AC/20 (5000) → ~30000
-                    float effectiveDamage = e.Damage;
+                    //
+                    // The game's raw per-shot impulse is an unreliable proxy and the burst remap
+                    // below overflows for outliers, so first substitute the weapon's canonical
+                    // impulse from the profile table. Unknown/modded weapons return their raw
+                    // impulse unchanged (and the clamps below keep them safe).
+                    float sourceImpulse = _weaponProfiles.ResolveImpulse(e);
+                    float effectiveDamage = sourceImpulse;
 
                     if (e.NumberOfShots > 1 && e.DelayBetweenShots > 0)
                     {
-                        // Burst weapons compress per-shot F5 into a narrow band (350–500) regardless
+                        // Burst weapons compress per-shot impulse into a narrow band (350–500) regardless
                         // of weapon size. We remap onto 85% of each weapon's non-burst magnitude:
                         //   350 → 523  → mag ~8500  (85% of AC/2's ~10000)
                         //   400 → 1008 → mag ~12259 (89% of AC/5's ~13826)
                         //   450 → 1941 → mag ~17681 (87% of AC/10's ~20366)
                         //   500 → 3738 → mag ~25500 (85% of AC/20's ~30000)
-                        // Exponential interpolation on t = (D - 350) / 150 (0=AC/2, 1=AC/20):
-                        //   effectiveDamage = 523.34 * 7.1429^t
-                        double t = (e.Damage - 350.0) / 150.0;
+                        // Exponential interpolation on t = (D - 350) / 150 (0=AC/2, 1=AC/20).
+                        // The input is clamped to the 350–500 band so an unaccounted weapon outside
+                        // it maps to the nearest tier instead of exploding the exponential (which
+                        // would overflow the int cast below and wrap to 0). Known weapons are already
+                        // substituted to an in-band canonical value, so this never affects them.
+                        double t = (Math.Clamp(sourceImpulse, 350f, 500f) - 350.0) / 150.0;
                         effectiveDamage = (float)(523.34 * Math.Pow(7.1429, t));
                     }
 
@@ -1223,7 +1234,12 @@ public class FFBEngine : IDisposable
         }
 
         baseMag *= weaponIntensity * _configuration.MasterIntensity;
-        int magnitude = Math.Clamp((int)baseMag, 0, 32767);
+        // Clamp in float space BEFORE the int cast. A float larger than int.MaxValue
+        // would overflow the cast and wrap to int.MinValue (→ 0 after Clamp) on this
+        // runtime — the cause of the burst "silent weapon" bug. Clamping the float to
+        // [0, 32767] first makes the cast always in-range, so no formula can ever
+        // overflow regardless of input (incl. unaccounted modded weapons). NaN → 0.
+        int magnitude = float.IsNaN(baseMag) ? 0 : (int)Math.Clamp(baseMag, 0f, 32767f);
 
         string weaponType = e.IsPPC ? "PPC" : e.WeaponClass.ToString();
         Log($"Weapon: {weaponType}, RawDamage={e.Damage:F1}, Intensity={weaponIntensity:F2}, FinalMag={magnitude}");

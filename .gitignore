@@ -90,3 +90,10 @@ appsettings.local.json
 # User config
 MechFFBConfig.json
 DeviceProfiles/
+
+# Raw weapon source data — inputs to the script that regenerates the
+# weapon_profiles*.json tables; the generated tables are tracked, these are not.
+ProjectileWeaponStats.csv
+ProjectileWeaponStats.json
+ProjectileWeaponStats.xlsx
+YAWCE_AllProjectileWeapons.json
