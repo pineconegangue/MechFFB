@@ -24,9 +24,19 @@ public class FFBConfiguration
     public AdvancedModeSettings Advanced { get; set; } = new();
 
     /// <summary>
-    /// Currently selected device GUID
+    /// Currently selected device GUID (persisted across sessions)
     /// </summary>
     public Guid? SelectedDeviceGuid { get; set; }
+
+    /// <summary>
+    /// Currently selected device name (for display/logging; not used for matching)
+    /// </summary>
+    public string? SelectedDeviceName { get; set; }
+
+    /// <summary>
+    /// Automatically start the FFB engine when a saved device is found on launch
+    /// </summary>
+    public bool AutoStartEngine { get; set; } = false;
 
     /// <summary>
     /// Invert force direction (for devices with opposite axis conventions like VPForce Rhino)

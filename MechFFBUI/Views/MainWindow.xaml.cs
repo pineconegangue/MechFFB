@@ -122,8 +122,12 @@ public partial class MainWindow : Window
             // Initialize DirectInput
             if (_ffbEngine.Initialize())
             {
-                RefreshDeviceList();
+                // Restore checkbox states from config before device list
+                // (must happen before RefreshDeviceList triggers auto-start)
+                AutoStartCheckBox.IsChecked = _ffbEngine.Configuration.AutoStartEngine;
+
                 LoadSlidersFromConfig(); // Load saved slider values
+                RefreshDeviceList(isInitialLoad: true);
             }
             else
             {
@@ -293,7 +297,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void RefreshDeviceList()
+    private void RefreshDeviceList(bool isInitialLoad = false)
     {
         if (_ffbEngine == null)
             return;
@@ -319,10 +323,40 @@ public partial class MainWindow : Window
             DeviceComboBox.DisplayMemberPath = "Name";
             UpdateStatus($"Found {devices.Count} FFB device(s)");
 
-            // Auto-select first device if only one available
-            if (devices.Count == 1)
+            // Try to restore saved device selection
+            var savedGuid = _ffbEngine.Configuration.SelectedDeviceGuid;
+            bool restoredDevice = false;
+
+            if (savedGuid.HasValue)
+            {
+                for (int i = 0; i < devices.Count; i++)
+                {
+                    if (devices[i].InstanceGuid == savedGuid.Value)
+                    {
+                        DeviceComboBox.SelectedIndex = i;
+                        Console.WriteLine($"Restored saved device: {devices[i].Name} ({savedGuid.Value})");
+                        restoredDevice = true;
+                        break;
+                    }
+                }
+
+                if (!restoredDevice)
+                {
+                    Console.WriteLine($"Saved device not found (GUID: {savedGuid.Value}, Name: {_ffbEngine.Configuration.SelectedDeviceName ?? "unknown"}). Device may be disconnected.");
+                }
+            }
+
+            // Fall back to auto-select first device if only one available and no saved device matched
+            if (!restoredDevice && devices.Count == 1)
             {
                 DeviceComboBox.SelectedIndex = 0;
+            }
+
+            // Auto-start engine if enabled and device was restored on initial load
+            if (isInitialLoad && restoredDevice && _ffbEngine.Configuration.AutoStartEngine && IsDeviceSelected)
+            {
+                Console.WriteLine("Auto-starting FFB engine (saved device found, auto-start enabled)");
+                Start_Click(this, new RoutedEventArgs());
             }
         }
         catch (Exception ex)
@@ -349,6 +383,11 @@ public partial class MainWindow : Window
             {
                 UpdateStatus($"Selected: {device.Name}");
                 IsDeviceSelected = true;
+
+                // Persist device selection
+                _ffbEngine.Configuration.SelectedDeviceGuid = device.InstanceGuid;
+                _ffbEngine.Configuration.SelectedDeviceName = device.Name;
+                DebouncedSave();
             }
             else
             {
@@ -393,6 +432,15 @@ public partial class MainWindow : Window
         {
             StatusText.Text = "Device restart required for exclusive mode change to take effect";
         }
+    }
+
+    private void AutoStart_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_ffbEngine == null)
+            return;
+
+        _ffbEngine.Configuration.AutoStartEngine = AutoStartCheckBox.IsChecked ?? false;
+        DebouncedSave();
     }
 
     private void TestDevice_Click(object sender, RoutedEventArgs e)
