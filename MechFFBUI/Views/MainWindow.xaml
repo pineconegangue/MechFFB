@@ -68,6 +68,8 @@
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="20"/>
                         <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="20"/>
+                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     
                     <CheckBox x:Name="InvertDirectionCheckBox" 
@@ -85,6 +87,14 @@
                              Checked="DisableExclusiveMode_Changed"
                              Unchecked="DisableExclusiveMode_Changed"
                              ToolTip="Use non-exclusive mode for all devices (required for Sidewinder FFB2). Requires restart."/>
+                    
+                    <CheckBox x:Name="AutoStartCheckBox" 
+                             Grid.Column="4"
+                             Content="Auto-Start Engine" 
+                             VerticalAlignment="Center"
+                             Checked="AutoStart_Changed"
+                             Unchecked="AutoStart_Changed"
+                             ToolTip="Automatically start the FFB engine on launch when the saved device is found"/>
                 </Grid>
             </StackPanel>
         </Border>
