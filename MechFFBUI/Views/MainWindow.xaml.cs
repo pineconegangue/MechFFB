@@ -10,6 +10,7 @@ namespace MechFFBUI.Views;
 public partial class MainWindow : Window
 {
     private FFBEngine? _ffbEngine;
+    private bool _pendingAutoStart;
     private DispatcherTimer? _updateTimer;
     private DispatcherTimer? _saveTimer; // Debounce timer for saving
     private bool _isDeviceSelected;
@@ -52,6 +53,13 @@ public partial class MainWindow : Window
                 {
                     _ffbEngine.SetWindowHandle(windowInteropHelper.Handle);
                     Console.WriteLine("Window handle passed to FFB engine");
+
+                    if (_pendingAutoStart)
+                    {
+                        _pendingAutoStart = false;
+                        Console.WriteLine("Auto-starting FFB engine (saved device found, auto-start enabled)");
+                        Start_Click(this, new RoutedEventArgs());
+                    }
                 }
             }
         };
@@ -352,11 +360,10 @@ public partial class MainWindow : Window
                 DeviceComboBox.SelectedIndex = 0;
             }
 
-            // Auto-start engine if enabled and device was restored on initial load
+            // Flag for deferred auto-start (must wait for window handle in Loaded event)
             if (isInitialLoad && restoredDevice && _ffbEngine.Configuration.AutoStartEngine && IsDeviceSelected)
             {
-                Console.WriteLine("Auto-starting FFB engine (saved device found, auto-start enabled)");
-                Start_Click(this, new RoutedEventArgs());
+                _pendingAutoStart = true;
             }
         }
         catch (Exception ex)
