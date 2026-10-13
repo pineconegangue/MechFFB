@@ -30,14 +30,14 @@ MechShakerRelay **must** be active. The MechShaker app itself doesn't need to be
    Do not select a virtual controller (e.g. vJoy) — select your actual physical device.
 
 6. **Click "Test Device"**
-   Verifies that FFB output is working. This can be finicky on some devices — don't worry if it doesn't respond.
+   Verifies that FFB output is working. This can be finicky on some devices — don't worry if it doesn't respond. 
 
 7. **Click "Start Engine"**
 
 8. **Launch MW5** and confirm the MechShaker mod is enabled.
 
 9. **Configure Invert Axis if needed**
-   Weapon fire should pull the stick *towards* you. If it pushes *away*, enable "Invert Axis".
+   Weapon fire should pull the stick *towards* you. If it pushes *away*, enable "Invert Axis". UPDATE V1 release - You can now click calibrate to ensure your axes are mapped correctly.
    *(Currently confirmed working on Moza AB9 for v3.0.0)*
 
 ---
@@ -65,8 +65,6 @@ If you use vJoy or another virtual controller:
 ---
 
 ## Known Quirks
-
-- The status light is **orange** while MechFFB is running but MW5 (with the mod) hasn't been detected yet, and turns **green** once telemetry is flowing. The **Events** counter shows how many game events have been received.
 - YAML and YAW introduce different missile firing modes. Streak LRMs firing as individual missiles are mapped correctly. Normal LRMs firing in salvos only register as a single event — not per missile.
 
 ---
