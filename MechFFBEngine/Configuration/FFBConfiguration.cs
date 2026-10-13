@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace MechFFBEngine.Configuration;
 
@@ -24,21 +25,64 @@ public class FFBConfiguration
     public AdvancedModeSettings Advanced { get; set; } = new();
 
     /// <summary>
-    /// Currently selected device GUID
+    /// Instance GUID of the last device you selected - re-selected automatically on startup
+    /// when it's connected, even if several FFB devices are present.
     /// </summary>
     public Guid? SelectedDeviceGuid { get; set; }
 
     /// <summary>
-    /// Invert force direction (for devices with opposite axis conventions like VPForce Rhino)
+    /// Axis mapping for devices that don't have their own saved mapping. The default (no flips)
+    /// is the reference behaviour - what "Invert Axis" ON used to do. See AxisMapping.
     /// </summary>
-    public bool InvertDirection { get; set; } = false;
+    public AxisMapping DefaultAxisMapping { get; set; } = new();
+
+    /// <summary>Per-device axis mapping, keyed by device instance GUID (set via Flip X/Y or Calibrate).</summary>
+    public Dictionary<Guid, AxisMapping> DeviceAxisMappings { get; set; } = new();
+
+    /// <summary>The mapping for a device: its own if saved, otherwise the default.</summary>
+    public AxisMapping GetAxisMapping(Guid? device) =>
+        device.HasValue && DeviceAxisMappings.TryGetValue(device.Value, out var m) ? m : DefaultAxisMapping;
 
     /// <summary>
-    /// Disable exclusive mode (use non-exclusive mode for all devices)
-    /// Useful for devices like Sidewinder FFB2 that need hardware centering spring
-    /// Note: Requires restart to take effect
+    /// Legacy "InvertDirection" key - read once, never written. Invert ON was the reference
+    /// (no flips); Invert OFF was a 180° turn, which is exactly Flip X + Flip Y.
     /// </summary>
-    public bool DisableExclusiveMode { get; set; } = false;
+    [JsonPropertyName("InvertDirection"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? LegacyInvertDirection
+    {
+        get => null;
+        set
+        {
+            if (value.HasValue)
+                DefaultAxisMapping = value.Value ? new AxisMapping() : new AxisMapping { FlipX = true, FlipY = true };
+        }
+    }
+
+    /// <summary>
+    /// Open the FFB device in exclusive mode. ON by default: DirectInput only lets most devices
+    /// play force feedback when opened exclusively (otherwise Start() fails with
+    /// NotExclusiveAcquired). Turn off only for devices that need it (e.g. Sidewinder FFB2).
+    /// Saved as "ExclusiveMode"; a short-lived "EnableExclusiveMode" key (defaulted to off by
+    /// mistake) is deliberately ignored so those files pick up the new default.
+    /// </summary>
+    [JsonPropertyName("ExclusiveMode")]
+    public bool EnableExclusiveMode { get; set; } = true;
+
+    /// <summary>
+    /// Legacy "DisableExclusiveMode" key (older releases) - read once, never written.
+    /// Disable = true (e.g. Sidewinder users) keeps exclusive mode off.
+    /// </summary>
+    [JsonPropertyName("DisableExclusiveMode"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? LegacyDisableExclusiveMode
+    {
+        get => null;
+        set { if (value.HasValue) EnableExclusiveMode = !value.Value; }
+    }
+
+    /// <summary>
+    /// Log every telemetry event and effect to the debug window. Off by default.
+    /// </summary>
+    public bool VerboseLogging { get; set; } = false;
 
     /// <summary>
     /// Get the default configuration file path
@@ -52,39 +96,21 @@ public class FFBConfiguration
     }
 
     /// <summary>
-    /// Save configuration to file
+    /// Save configuration to file. Silent on success unless VerboseLogging is on.
     /// </summary>
     public void Save()
     {
         try
         {
             string path = GetConfigPath();
-            Console.WriteLine($"Attempting to save configuration to: {path}");
-
-            string json = JsonSerializer.Serialize(this, new JsonSerializerOptions
-            {
-                WriteIndented = true
-            });
-
-            Console.WriteLine($"JSON generated, length: {json.Length} characters");
-
+            string json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(path, json);
-
-            // Verify the file was written
-            if (File.Exists(path))
-            {
-                var fileInfo = new FileInfo(path);
-                Console.WriteLine($"✓ Configuration saved successfully! File size: {fileInfo.Length} bytes");
-            }
-            else
-            {
-                Console.WriteLine($"✗ WARNING: File does not exist after write!");
-            }
+            if (VerboseLogging)
+                Console.WriteLine($"Configuration saved to {DisplayPath.Of(path)} ({json.Length} chars)");
         }
         catch (Exception ex)
         {
             Console.WriteLine($"✗ ERROR saving configuration: {ex.Message}");
-            Console.WriteLine($"  Stack trace: {ex.StackTrace}");
         }
     }
 
@@ -96,39 +122,28 @@ public class FFBConfiguration
         try
         {
             string path = GetConfigPath();
-            Console.WriteLine($"Attempting to load configuration from: {path}");
-
             if (File.Exists(path))
             {
-                string json = File.ReadAllText(path);
-                Console.WriteLine($"Found config file, size: {json.Length} characters");
-                Console.WriteLine($"First 200 chars: {json.Substring(0, Math.Min(200, json.Length))}");
-
-                var config = JsonSerializer.Deserialize<FFBConfiguration>(json);
+                var config = JsonSerializer.Deserialize<FFBConfiguration>(File.ReadAllText(path));
                 if (config != null)
                 {
-                    Console.WriteLine($"✓ Configuration loaded successfully!");
-                    Console.WriteLine($"  MasterIntensity: {config.MasterIntensity}");
-                    Console.WriteLine($"  Simple.BallisticIntensity: {config.Simple.BallisticIntensity}");
-                    Console.WriteLine($"  Simple.LaserIntensity: {config.Simple.LaserIntensity}");
+                    Console.WriteLine($"✓ Settings loaded from {DisplayPath.Of(path)}");
+                    if (config.VerboseLogging)
+                        Console.WriteLine($"  MasterIntensity={config.MasterIntensity}, DefaultAxisMapping={config.DefaultAxisMapping}, EnableExclusiveMode={config.EnableExclusiveMode}");
                     return config;
                 }
-                else
-                {
-                    Console.WriteLine("✗ Deserialization returned null, using defaults");
-                }
+                Console.WriteLine("✗ Settings file was empty or invalid - using defaults");
             }
             else
             {
-                Console.WriteLine($"No config file found at {path}, using defaults");
+                Console.WriteLine($"No settings file at {DisplayPath.Of(path)} - using defaults");
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"✗ Error loading configuration: {ex.Message}");
+            Console.WriteLine($"✗ Error loading settings: {ex.Message} - using defaults");
         }
 
-        Console.WriteLine("Using default configuration");
         return new FFBConfiguration();
     }
 }
@@ -153,9 +168,10 @@ public class SimpleModeSettings
     public float MeleeIntensity { get; set; } = 0.6f;
 
     // Incoming damage by type
-    public float LaserDamageIntensity { get; set; } = 0.6f;
-    public float BallisticDamageIntensity { get; set; } = 0.6f;
-    public float PPCDamageIntensity { get; set; } = 0.6f;
+    // Laser & MG: the game reports incoming lasers and machine guns as the same (Trace) damage type
+    public float LaserMGDamageIntensity { get; set; } = 0.6f;
+    // Projectile: the game reports incoming autocannons and PPCs as the same damage type
+    public float ProjectileDamageIntensity { get; set; } = 0.6f;
     public float MissileDamageIntensity { get; set; } = 0.6f;
     public float MeleeDamageIntensity { get; set; } = 0.6f;
     public float ExplosionDamageIntensity { get; set; } = 0.6f;
@@ -166,6 +182,14 @@ public class SimpleModeSettings
     // Movement (usually more subtle)
     public float FootstepIntensity { get; set; } = 0.3f;
     public float JumpJetIntensity { get; set; } = 0.5f;
+
+    // Legacy keys from older settings.json files - read once on load, never written back.
+    // (PPCDamageIntensity is simply ignored now that the slider is gone.)
+    [JsonPropertyName("LaserDamageIntensity"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public float? LegacyLaserDamageIntensity { get => null; set { if (value.HasValue) LaserMGDamageIntensity = value.Value; } }
+
+    [JsonPropertyName("BallisticDamageIntensity"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public float? LegacyBallisticDamageIntensity { get => null; set { if (value.HasValue) ProjectileDamageIntensity = value.Value; } }
 }
 
 /// <summary>
@@ -182,9 +206,8 @@ public class AdvancedModeSettings
     public MeleeSettings Melee { get; set; } = new();
 
     // Damage by type
-    public DamageSettings LaserDamage { get; set; } = new();
-    public DamageSettings BallisticDamage { get; set; } = new();
-    public DamageSettings PPCDamage { get; set; } = new();
+    public DamageSettings LaserMGDamage { get; set; } = new();     // Incoming lasers + machine guns
+    public DamageSettings ProjectileDamage { get; set; } = new();  // Incoming autocannons + PPCs
     public DamageSettings MissileDamage { get; set; } = new()
     {
         AttackTime = 15,
@@ -196,17 +219,20 @@ public class AdvancedModeSettings
         AttackTime = 5,
         FadeTime = 300
     };
-    public DamageSettings ExplosionDamage { get; set; } = new()
-    {
-        AttackTime = 20,
-        FadeTime = 400
-    };
     public ExplosionDamageSettings ExplosionDamageAdvanced { get; set; } = new();
 
     // Movement and impacts
     public FootstepSettings Footsteps { get; set; } = new();
     public JumpJetSettings JumpJets { get; set; } = new();
     public LandingSettings Landing { get; set; } = new();
+
+    // Legacy keys from older settings.json files - read once on load, never written back.
+    // (PPCDamage is simply ignored now that its sliders are gone.)
+    [JsonPropertyName("LaserDamage"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DamageSettings? LegacyLaserDamage { get => null; set { if (value != null) LaserMGDamage = value; } }
+
+    [JsonPropertyName("BallisticDamage"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DamageSettings? LegacyBallisticDamage { get => null; set { if (value != null) ProjectileDamage = value; } }
 }
 
 // Explosion-specific settings with separate impact and rumble controls
@@ -229,7 +255,6 @@ public class ExplosionDamageSettings
 // Weapon fire effect settings
 public class BallisticSettings
 {
-    public float Intensity { get; set; } = 0.6f;
     public int Duration { get; set; } = 150; // ms
     public int AttackTime { get; set; } = 10; // ms
     public int FadeTime { get; set; } = 120; // ms
@@ -237,7 +262,6 @@ public class BallisticSettings
 
 public class LaserSettings
 {
-    public float Intensity { get; set; } = 0.6f;
     // Duration removed - now uses F3 beam duration from game data
     public int Frequency { get; set; } = 40; // Hz
     public int AttackTime { get; set; } = 30; // ms
@@ -246,7 +270,6 @@ public class LaserSettings
 
 public class PPCSettings
 {
-    public float Intensity { get; set; } = 0.6f;
     public int Duration { get; set; } = 200; // ms
     public int AttackTime { get; set; } = 20; // ms
     public int FadeTime { get; set; } = 150; // ms
@@ -254,7 +277,6 @@ public class PPCSettings
 
 public class MachineGunSettings
 {
-    public float Intensity { get; set; } = 0.6f;
     public int Duration { get; set; } = 60; // ms
     public int Frequency { get; set; } = 33; // Hz
     public int AttackTime { get; set; } = 10; // ms
@@ -263,17 +285,15 @@ public class MachineGunSettings
 
 public class MissileSettings
 {
-    public float Intensity { get; set; } = 0.6f;
     public int Duration { get; set; } = 200; // ms (max 1500)
     public int Frequency { get; set; } = 35; // Hz - rumble frequency for missile launches
-    public float RumbleMultiplier { get; set; } = 1.0f; // 100% = 32767 max magnitude
+    public float RumbleMultiplier { get; set; } = 1.0f; // Missile launch rumble strength (1.0 = 100%), on top of Simple.MissileIntensity
     public int AttackTime { get; set; } = 20; // ms
     public int FadeTime { get; set; } = 150; // ms (max 600)
 }
 
 public class MeleeSettings
 {
-    public float Intensity { get; set; } = 0.6f;
     public int Duration { get; set; } = 400; // ms
     public int AttackTime { get; set; } = 5; // ms
     public int FadeTime { get; set; } = 300; // ms
@@ -282,18 +302,15 @@ public class MeleeSettings
 // Damage effect settings
 public class DamageSettings
 {
-    public float Intensity { get; set; } = 0.6f;
     public int Duration { get; set; } = 300; // ms
     public int Frequency { get; set; } = 50; // Hz (for periodic effects like lasers)
     public int AttackTime { get; set; } = 40; // ms
     public int FadeTime { get; set; } = 120; // ms
-    public float RumbleMultiplier { get; set; } = 2.1f; // Multiplier for explosion rumble effect (default 2.1x = 210%)
 }
 
 // Movement effect settings
 public class FootstepSettings
 {
-    public float Intensity { get; set; } = 0.3f;
     public int Duration { get; set; } = 100; // ms
     public int AttackTime { get; set; } = 5; // ms
     public int FadeTime { get; set; } = 80; // ms
@@ -301,7 +318,6 @@ public class FootstepSettings
 
 public class JumpJetSettings
 {
-    public float Intensity { get; set; } = 0.5f;
     public int Frequency { get; set; } = 25; // Hz
     public int AttackTime { get; set; } = 50; // ms
     public int FadeTime { get; set; } = 50; // ms
@@ -309,7 +325,6 @@ public class JumpJetSettings
 
 public class LandingSettings
 {
-    public float Intensity { get; set; } = 0.6f;
     public int Duration { get; set; } = 300; // ms
     public int AttackTime { get; set; } = 10; // ms
     public int FadeTime { get; set; } = 200; // ms

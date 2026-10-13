@@ -66,8 +66,7 @@ If you use vJoy or another virtual controller:
 
 ## Known Quirks
 
-- The **Events** counter on the right always shows `0`, even when events are being read successfully — check the debug window instead.
-- The status text will continue to say **"Waiting for MechWarrior 5..."** even after a successful connection.
+- The status light is **orange** while MechFFB is running but MW5 (with the mod) hasn't been detected yet, and turns **green** once telemetry is flowing. The **Events** counter shows how many game events have been received.
 - YAML and YAW introduce different missile firing modes. Streak LRMs firing as individual missiles are mapped correctly. Normal LRMs firing in salvos only register as a single event — not per missile.
 
 ---

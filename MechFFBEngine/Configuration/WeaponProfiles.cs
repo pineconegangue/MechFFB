@@ -138,7 +138,7 @@ public sealed class WeaponProfiles
             }
             var doc = JsonSerializer.Deserialize<ProfileDocument>(File.ReadAllText(path));
             var list = doc?.Weapons ?? new List<ProfileEntry>();
-            Console.WriteLine($"WeaponProfiles: read {list.Count} entries from {path}");
+            Console.WriteLine($"WeaponProfiles: read {list.Count} entries from {DisplayPath.Of(path)}");
             return list;
         }
         catch (Exception ex)

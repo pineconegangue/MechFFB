@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Self-tests. Compiles the Reader + Engine sources against a stub DirectInput device
+       (TestDeviceStub.cs), so it needs no FFB hardware, no SharpDX and no NuGet packages.
+       Run with MW5 closed: set MechFFBTests as startup project and run it, or use dotnet run in its folder.
+       Exit code = number of failures. -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <IsPackable>false</IsPackable>
+    <!-- The MMF test guards Windows-only calls with OperatingSystem.IsWindows(); the analyzer
+         can't see through the linked reader code, so silence its platform warning here. -->
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\MechFFBReader\**\*.cs" Exclude="..\MechFFBReader\obj\**;..\MechFFBReader\bin\**" LinkBase="Linked\Reader" />
+    <Compile Include="..\MechFFBEngine\FFBEngine.cs" Link="Linked\Engine\FFBEngine.cs" />
+    <Compile Include="..\MechFFBEngine\Configuration\*.cs" LinkBase="Linked\Engine\Configuration" />
+    <None Include="..\MechFFBEngine\weapon_profiles*.json" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

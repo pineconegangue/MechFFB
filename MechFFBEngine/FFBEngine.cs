@@ -11,9 +11,11 @@ namespace MechFFBEngine;
 ///
 /// Architecture (Phase 1 + Phase 2):
 ///   Telemetry read thread → Handle* (AccumulateBatch) → BatchTimer flushes →
-///   EnqueueEffect (Channel&lt;Action&gt;) → dedicated FFB thread → DirectInput
+///   EnqueueEffect (Channel&lt;Action&gt;) → single serialized FFB queue → DirectInput
 ///
-/// Phase 1: All DirectInput calls are on a dedicated FFB thread (non-blocking read loop).
+/// Phase 1: All DirectInput calls are serialized through one queue with a single consumer
+///          (non-blocking read loop). The async consumer may resume on different pool threads,
+///          but actions never overlap - that, not thread identity, is what keeps it safe.
 /// Phase 2: Events are accumulated in 10ms windows per batch-key. Same weapon/damage type
 ///          within the window is combined into a single effect (sum magnitudes, clamp to 32767).
 ///          This collapses e.g. 10 LBX pellets → 1 effect, cutting FFB thread work ~10×.
@@ -27,9 +29,9 @@ public class FFBEngine : IDisposable
     private readonly WeaponProfiles _weaponProfiles;
     private DirectInputHapticManager _hapticManager;
 
-    // ── Phase 1: dedicated FFB thread ────────────────────────────────────────
+    // ── Phase 1: single serialized FFB queue ─────────────────────────────────
     // All DirectInput calls are enqueued here and drained on a single thread.
-    private readonly Channel<Action> _effectQueue = Channel.CreateUnbounded<Action>(
+    private Channel<Action> _effectQueue = Channel.CreateUnbounded<Action>( // Recreated on restart - Stop() completes it for good
         new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
     private Task? _effectTask;
     private CancellationTokenSource? _effectLoopCts;
@@ -38,11 +40,17 @@ public class FFBEngine : IDisposable
     // Console.WriteLine blocks for 1-5ms on Windows (stdout lock + flush).
     // All hot-path logging is enqueued here and written by a dedicated background
     // thread so the read thread and Handle* methods are never stalled by I/O.
-    private readonly Channel<string> _logQueue = Channel.CreateUnbounded<string>(
+    private Channel<string> _logQueue = Channel.CreateUnbounded<string>( // Recreated on restart - Stop() completes it for good
         new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
     private Task? _logTask;
+    private bool _queuesCompleted; // Set by Stop(); Start() then builds fresh queues
 
-    private void Log(string message) => _logQueue.Writer.TryWrite(message);
+    // While stopped the queue is closed, so fall back to writing directly (rare, non-hot-path).
+    private void Log(string message)
+    {
+        if (!_logQueue.Writer.TryWrite(message))
+            Console.WriteLine(message);
+    }
 
     private async Task LogLoop(CancellationToken token)
     {
@@ -88,10 +96,27 @@ public class FFBEngine : IDisposable
 
     // ── Continuous-effect state (not batched) ─────────────────────────────────
     private bool _isLeftFoot = true;
+
+    // Canonical push directions in centidegrees, BEFORE the per-device axis mapping.
+    // Reference = the original "Invert Axis ON" output, verified physically on the author's stick.
+    // Device differences are handled only by AxisMapping in the haptic manager, never here.
+    private const int DIR_LEFT = 0;
+    private const int DIR_TOWARD_PILOT = 9000;
+    private const int DIR_RIGHT = 18000;
+    private const int DIR_AWAY_FROM_PILOT = 27000;
+
+    // Sentinel for singleton effects: claimed on the read thread before EnqueueEffect, replaced
+    // by the real ID on the FFB thread. Stops a second START (arriving before the FFB thread
+    // runs) from creating a duplicate, and lets a STOP that arrives first cancel the create.
+    private const int EFFECT_PENDING = int.MaxValue;
+
     private int _activeJumpJetEffectId = -1;
     private System.Threading.Timer? _machineGunTimer = null;
     private bool _machineGunsActive = false;
     private int _currentMachineGunMagnitude = 0;
+    private readonly object _machineGunLock = new(); // Read thread and MG timer both start/stop the MG pulse train
+    private DateTime _lastMachineGunActiveTime = DateTime.MinValue;
+    private const int MACHINE_GUN_STALE_MS = 10000; // Safety stop if no "firing" event arrives for this long
 
     private int _activeContinuousBeamEffectId = -1;
     private int _currentContinuousBeamMagnitude = 0;
@@ -111,7 +136,30 @@ public class FFBEngine : IDisposable
 
     // ── Public API ────────────────────────────────────────────────────────────
     public bool IsRunning { get; private set; }
+
+    /// <summary>
+    /// Per-event detail logging (every weapon fire, damage hit, batch flush, footstep...).
+    /// Off by default - each line costs the UI a rebuild of the debug log. Setup, connection,
+    /// errors and safety stops are always logged.
+    /// </summary>
+    public bool VerboseLogging
+    {
+        get => _verbose;
+        set
+        {
+            _verbose = value;
+            _telemetryReader.VerboseLogging = value;
+            Log($"Verbose logging: {(value ? "ON" : "OFF")}");
+        }
+    }
+    private volatile bool _verbose;
     public FFBConfiguration Configuration => _configuration;
+
+    /// <summary>Telemetry events processed since the app started (written by the read thread, polled by the UI).</summary>
+    public int EventsProcessed => _telemetryReader.EventsProcessed;
+
+    /// <summary>True while attached to the MechShakerBridge shared memory, i.e. MW5 is running with the mod.</summary>
+    public bool IsTelemetryConnected => _telemetryReader.IsConnected;
     public event EventHandler<string>? OnStatusChanged;
     public event EventHandler<string>? OnError;
 
@@ -137,16 +185,27 @@ public class FFBEngine : IDisposable
         Log($"Window handle set: {windowHandle}");
     }
 
-    public void SetInvertDirection(bool invert)
+    /// <summary>Set how canonical directions map onto the selected device's axes (see AxisMapping).</summary>
+    public void SetAxisMapping(AxisMapping mapping)
     {
-        _hapticManager.InvertDirection = invert;
-        Log($"Direction inversion: {(invert ? "ENABLED" : "DISABLED")}");
+        _hapticManager.AxisMapping = mapping.Clone();
+        Log($"Axis mapping: {mapping}");
     }
 
-    public void SetDisableExclusiveMode(bool disable)
+    /// <summary>Number of force axes on the selected device (1 = direction can't be expressed).</summary>
+    public int ForceAxisCount => _hapticManager.ForceAxisCount;
+
+    /// <summary>
+    /// Calibration: a short push along a canonical direction, bypassing the axis mapping.
+    /// Blocks for ~0.65 s - call off the UI thread. Refused while the engine is running.
+    /// </summary>
+    public bool PlayCalibrationPush(int canonicalDirection)
+        => !IsRunning && _hapticManager.PlayRawPush(canonicalDirection);
+
+    public void SetEnableExclusiveMode(bool enable)
     {
-        _hapticManager.DisableExclusiveMode = disable;
-        Log($"Disable exclusive mode: {(disable ? "ENABLED" : "DISABLED")} (requires device restart)");
+        _hapticManager.EnableExclusiveMode = enable;
+        Log($"Exclusive mode: {(enable ? "ENABLED" : "DISABLED")} (applies when the device is next opened)");
     }
 
     public bool Initialize()
@@ -219,7 +278,18 @@ public class FFBEngine : IDisposable
             return;
         }
 
-        // Start dedicated FFB thread before subscribing to events (Phase 1)
+        // Stop() permanently completes both queues, so a restart needs fresh ones.
+        // (The first Start keeps the original log queue so pre-start log lines still flush.)
+        if (_queuesCompleted)
+        {
+            _effectQueue = Channel.CreateUnbounded<Action>(
+                new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
+            _logQueue = Channel.CreateUnbounded<string>(
+                new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
+            _queuesCompleted = false;
+        }
+
+        // Start the FFB queue consumer before subscribing to events (Phase 1)
         var cts = new CancellationTokenSource();
         _effectTask = Task.Factory.StartNew(
             () => EffectLoop(cts.Token),
@@ -275,62 +345,39 @@ public class FFBEngine : IDisposable
         _logTask?.Wait(TimeSpan.FromSeconds(2));
         _effectLoopCts?.Dispose();
         _effectLoopCts = null;
+        _queuesCompleted = true;
 
-        // Clean up continuous effects
-        if (_activeJumpJetEffectId >= 0)
+        // The FFB thread has exited, so it's safe to touch the device directly here.
+        // Reset all continuous-effect state so a later Start() begins clean, then release every
+        // effect still held. Dispose-only (no Stop) per the DestroyEffect invariant; this also
+        // catches effects whose delayed cleanup was dropped because the queue had closed.
+        lock (_machineGunLock)
         {
-            _hapticManager.StopEffect(_activeJumpJetEffectId);
-            _hapticManager.DestroyEffect(_activeJumpJetEffectId);
-            _activeJumpJetEffectId = -1;
+            _machineGunsActive = false;
+            _machineGunTimer?.Dispose();
+            _machineGunTimer = null;
+            _currentMachineGunMagnitude = 0;
         }
-
-        _machineGunsActive = false;
-        _machineGunTimer?.Dispose();
-        _machineGunTimer = null;
-
-        if (_activeContinuousBeamEffectId >= 0)
-        {
-            _hapticManager.StopEffect(_activeContinuousBeamEffectId);
-            _hapticManager.DestroyEffect(_activeContinuousBeamEffectId);
-            _activeContinuousBeamEffectId = -1;
-            _currentContinuousBeamMagnitude = 0;
-        }
-
         _laserDamageCleanupTimer?.Dispose();
         _laserDamageCleanupTimer = null;
-        if (_activeLaserDamageEffectId >= 0)
-        {
-            _hapticManager.StopEffect(_activeLaserDamageEffectId);
-            _hapticManager.DestroyEffect(_activeLaserDamageEffectId);
-            _activeLaserDamageEffectId = -1;
-        }
+        _laserBeamEndTime = DateTime.MinValue;
+        _activeJumpJetEffectId = -1;
+        _activeContinuousBeamEffectId = -1;
+        _currentContinuousBeamMagnitude = 0;
+        _activeLaserDamageEffectId = -1;
+        _activeMachineGunDamageEffectId = -1;
+        lock (_activeStreakEffects) _activeStreakEffects.Clear();
 
-        if (_activeMachineGunDamageEffectId >= 0)
-        {
-            _hapticManager.StopEffect(_activeMachineGunDamageEffectId);
-            _hapticManager.DestroyEffect(_activeMachineGunDamageEffectId);
-            _activeMachineGunDamageEffectId = -1;
-        }
-
-        List<int> effectsToCleanup;
-        lock (_activeStreakEffects)
-        {
-            effectsToCleanup = new List<int>(_activeStreakEffects);
-            _activeStreakEffects.Clear();
-        }
-        foreach (var effectId in effectsToCleanup)
-            _hapticManager.DestroyEffect(effectId);
-
-        _hapticManager.StopAllEffects();
+        _hapticManager.DestroyAllEffects();
         OnStatusChanged?.Invoke(this, "FFB engine stopped");
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Phase 1: dedicated FFB thread
+    // Phase 1: single serialized FFB queue
     // ─────────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Enqueue a DirectInput action onto the dedicated FFB thread.
+    /// Enqueue a DirectInput action onto the serialized FFB queue.
     /// Handle* methods must never call _hapticManager directly — always via here.
     /// </summary>
     private void EnqueueEffect(Action action)
@@ -479,11 +526,11 @@ public class FFBEngine : IDisposable
         if (batch.ApplyWeaponScaling && count > 1)
         {
             double multiplier = 2.0 - 1.0 / Math.Pow(count, 0.6);
-            Log($"[Batch FLUSH] {key.Kind}/{key.SubType} N={count} scale={multiplier:F2}× mag={mag}");
+            if (_verbose) Log($"[Batch FLUSH] {key.Kind}/{key.SubType} N={count} scale={multiplier:F2}× mag={mag}");
         }
         else
         {
-            Log($"[Batch FLUSH] {key.Kind}/{key.SubType} dir={dir / 100}° mag={mag}");
+            if (_verbose) Log($"[Batch FLUSH] {key.Kind}/{key.SubType} dir={dir / 100}° mag={mag}");
         }
 
         switch (kind)
@@ -542,11 +589,17 @@ public class FFBEngine : IDisposable
                             explosionAdv.ImpactDuration + explosionAdv.ImpactFadeTime,
                             explosionAdv.RumbleDuration + explosionAdv.RumbleFadeTime);
 
-                        Task.Delay(maxDur + 50).ContinueWith(_ =>
+                        Task.Delay(maxDur + 50).ContinueWith(_ => EnqueueEffect(() =>
                         {
                             _hapticManager.DestroyEffect(ids[0]);
                             _hapticManager.DestroyEffect(ids[1]);
-                        });
+                        }));
+                    }
+                    else
+                    {
+                        // One half failed to create - don't leak the other (DestroyEffect ignores -1)
+                        _hapticManager.DestroyEffect(ids[0]);
+                        _hapticManager.DestroyEffect(ids[1]);
                     }
                 });
                 break;
@@ -561,10 +614,8 @@ public class FFBEngine : IDisposable
     {
         int magnitude = CalculateRecoilMagnitude(e);
 
-        // Recoil direction: always toward the pilot — device convention applied here
-        int recoilDirection = _hapticManager.InvertDirection
-            ? 9000
-            : (9000 + 18000) % 36000;
+        // Recoil always pulls the stick toward the pilot (device differences: AxisMapping)
+        const int recoilDirection = DIR_TOWARD_PILOT;
 
         switch (e.WeaponClass)
         {
@@ -591,7 +642,7 @@ public class FFBEngine : IDisposable
                         burstAttack = Math.Max(5, burstAttack);
                         burstFade = Math.Max(10, burstFade);
 
-                        Log($"BURST WEAPON: {shotCount} shots @ {delayMs}ms intervals, mag={magnitude}, dur={burstDuration}ms, atk={burstAttack}ms, fade={burstFade}ms");
+                        if (_verbose) Log($"BURST WEAPON: {shotCount} shots @ {delayMs}ms intervals, mag={magnitude}, dur={burstDuration}ms, atk={burstAttack}ms, fade={burstFade}ms");
 
                         // Fire each shot with progressive delay
                         for (int i = 0; i < shotCount; i++)
@@ -613,9 +664,7 @@ public class FFBEngine : IDisposable
                                     {
                                         _hapticManager.PlayEffect(id, 1);
                                         Task.Delay(captureDur + captureFade + 50).ContinueWith(__ =>
-                                        {
-                                            _hapticManager.DestroyEffect(id);
-                                        });
+                                            EnqueueEffect(() => _hapticManager.DestroyEffect(id)));
                                     }
                                 });
                             });
@@ -644,32 +693,28 @@ public class FFBEngine : IDisposable
                     // ── Machine Gun (continuous singleton — NOT batched) ──────────
                     if (e.IsMachineGun)
                     {
-                        _currentMachineGunMagnitude = magnitude;
+                        lock (_machineGunLock)
+                        {
+                            _currentMachineGunMagnitude = magnitude;
 
-                        if (e.IsActive)
-                        {
-                            var mg = _configuration.Advanced.MachineGuns;
-                            if (!_machineGunsActive || _machineGunTimer == null)
+                            if (e.IsActive)
                             {
-                                _machineGunsActive = true;
-                                _machineGunTimer?.Dispose();
-                                FireMachineGunPulse(_currentMachineGunMagnitude, mg);
-                                _machineGunTimer = new System.Threading.Timer(_ =>
+                                _lastMachineGunActiveTime = DateTime.Now;
+                                var mg = _configuration.Advanced.MachineGuns;
+                                if (!_machineGunsActive || _machineGunTimer == null)
                                 {
-                                    if (_machineGunsActive)
-                                        FireMachineGunPulse(_currentMachineGunMagnitude, _configuration.Advanced.MachineGuns);
-                                }, null, 93, 93);
-                                Log($"Machine Gun: START/RESTART continuous fire, magnitude={_currentMachineGunMagnitude}");
+                                    _machineGunsActive = true;
+                                    _machineGunTimer?.Dispose();
+                                    FireMachineGunPulse(_currentMachineGunMagnitude, mg);
+                                    _machineGunTimer = new System.Threading.Timer(_ => MachineGunTick(), null, 93, 93);
+                                    if (_verbose) Log($"Machine Gun: START/RESTART continuous fire, magnitude={_currentMachineGunMagnitude}");
+                                }
+                                // else: already firing, magnitude field updated above
                             }
-                            // else: already firing, magnitude field updated above
-                        }
-                        else if (_machineGunsActive)
-                        {
-                            _machineGunsActive = false;
-                            _machineGunTimer?.Dispose();
-                            _machineGunTimer = null;
-                            _currentMachineGunMagnitude = 0;
-                            Log("Machine Gun: STOP");
+                            else if (_machineGunsActive)
+                            {
+                                StopMachineGunsLocked("STOP");
+                            }
                         }
                         return;
                     }
@@ -678,35 +723,51 @@ public class FFBEngine : IDisposable
                     if (e.BeamDuration == 0 && e.IsActive)
                     {
                         _currentContinuousBeamMagnitude = magnitude;
-                        if (_activeContinuousBeamEffectId < 0)
+                        // Claim the slot on the read thread (-1 → PENDING) so a second START that
+                        // arrives before the FFB thread runs can't create a duplicate effect.
+                        if (Interlocked.CompareExchange(ref _activeContinuousBeamEffectId, EFFECT_PENDING, -1) == -1)
                         {
                             var laser = _configuration.Advanced.Lasers;
                             int captureMag = _currentContinuousBeamMagnitude;
                             EnqueueEffect(() =>
                             {
+                                if (_activeContinuousBeamEffectId != EFFECT_PENDING)
+                                    return; // STOP arrived first - nothing to start
+
                                 int id = _hapticManager.CreatePeriodicEffect(captureMag, 10000, laser.Frequency, laser.AttackTime, laser.FadeTime);
-                                if (id >= 0)
+                                if (id < 0)
                                 {
-                                    _activeContinuousBeamEffectId = id;
-                                    _hapticManager.PlayEffect(id, 1);
-                                    Log($"Continuous Beam: START, Frequency={laser.Frequency}Hz, Magnitude={captureMag}");
+                                    Interlocked.CompareExchange(ref _activeContinuousBeamEffectId, -1, EFFECT_PENDING); // allow retry
+                                    return;
                                 }
+                                if (Interlocked.CompareExchange(ref _activeContinuousBeamEffectId, id, EFFECT_PENDING) != EFFECT_PENDING)
+                                {
+                                    _hapticManager.DestroyEffect(id); // STOP landed while we were creating
+                                    return;
+                                }
+                                _hapticManager.PlayEffect(id, 1);
+                                if (_verbose) Log($"Continuous Beam: START, Frequency={laser.Frequency}Hz, Magnitude={captureMag}");
                             });
                         }
                         return;
                     }
 
-                    if (e.BeamDuration == 0 && !e.IsActive && _activeContinuousBeamEffectId >= 0)
+                    if (e.BeamDuration == 0 && !e.IsActive)
                     {
-                        int captureId = _activeContinuousBeamEffectId;
-                        _activeContinuousBeamEffectId = -1;
-                        _currentContinuousBeamMagnitude = 0;
-                        Log("Continuous Beam: STOP");
-                        EnqueueEffect(() =>
+                        int captureId = Interlocked.Exchange(ref _activeContinuousBeamEffectId, -1);
+                        if (captureId >= 0)
                         {
-                            _hapticManager.StopEffect(captureId);
-                            _hapticManager.DestroyEffect(captureId);
-                        });
+                            _currentContinuousBeamMagnitude = 0;
+                            if (_verbose) Log("Continuous Beam: STOP");
+                            if (captureId != EFFECT_PENDING) // PENDING: the queued create sees -1 and skips
+                            {
+                                EnqueueEffect(() =>
+                                {
+                                    _hapticManager.StopEffect(captureId);
+                                    _hapticManager.DestroyEffect(captureId);
+                                });
+                            }
+                        }
                         return;
                     }
 
@@ -754,11 +815,11 @@ public class FFBEngine : IDisposable
                                 lock (_activeStreakEffects) _activeStreakEffects.Add(id);
 
                                 int totalDuration = missile.Duration + missile.FadeTime;
-                                Task.Delay(totalDuration + 10).ContinueWith(_ =>
+                                Task.Delay(totalDuration + 10).ContinueWith(_ => EnqueueEffect(() =>
                                 {
                                     lock (_activeStreakEffects) _activeStreakEffects.Remove(id);
                                     _hapticManager.DestroyEffect(id);
-                                });
+                                }));
                             }
                         });
                     }
@@ -786,17 +847,10 @@ public class FFBEngine : IDisposable
     {
         var now = DateTime.Now;
 
-        // Direction mapping: Blueprint gives Rear=0°, Left=90°, Front=180°, Right=270°
+        // Direction mapping: Blueprint gives Rear=0°, Left=90°, Front=180°, Right=270° (where the
+        // hit came from). The stick is pushed AWAY from the hit: front → toward pilot (9000),
+        // right → left (0), rear → away (27000), left → right (18000). Device differences: AxisMapping.
         float diAngle = (270 - e.DirectionAngle + 360) % 360;
-        if (!_hapticManager.InvertDirection)
-        {
-            diAngle = (diAngle + 180) % 360;
-            Log("DAMAGE: Using base mapping + 180° offset (InvertDirection OFF)");
-        }
-        else
-        {
-            Log("DAMAGE: Using base mapping (InvertDirection ON)");
-        }
         int direction = (int)(diAngle * 100);
 
         // Magnitude placeholder — damage-received events pass RawDamageSum through the batch
@@ -813,7 +867,7 @@ public class FFBEngine : IDisposable
             float intensity = _configuration.Simple.ExplosionDamageIntensity;
             int explosionMag = Math.Clamp((int)(magnitude * intensity), 0, 32767);
 
-            Log($"DAMAGE: Type=Explosion, Amount={e.DamageAmount:F1}, GameDir={e.DirectionAngle:F1}°, DIDir={direction / 100:F1}°, Mag={explosionMag}");
+            if (_verbose) Log($"DAMAGE: Type=Explosion, Amount={e.DamageAmount:F1}, GameDir={e.DirectionAngle:F1}°, DIDir={direction / 100:F1}°, Mag={explosionMag}");
 
             // Bucket direction so nearby angles on the same attack merge
             int dirBucket = BucketDirection(direction);
@@ -825,8 +879,8 @@ public class FFBEngine : IDisposable
         // Per-type intensity multiplier
         float damageIntensity = (int)e.DamageType switch
         {
-            0 => _configuration.Simple.LaserDamageIntensity,
-            1 => _configuration.Simple.BallisticDamageIntensity,
+            0 => _configuration.Simple.LaserMGDamageIntensity,
+            1 => _configuration.Simple.ProjectileDamageIntensity,
             2 => _configuration.Simple.MissileDamageIntensity,
             3 => _configuration.Simple.MeleeDamageIntensity,
             _ => 0.6f
@@ -834,15 +888,15 @@ public class FFBEngine : IDisposable
 
         magnitude = Math.Clamp((int)(magnitude * damageIntensity), 0, 32767);
 
-        Log($"DAMAGE: Type={e.DamageType}, Amount={e.DamageAmount:F1}, GameDir={e.DirectionAngle:F1}°, DIDir={direction / 100:F1}°, Mag={magnitude}");
+        if (_verbose) Log($"DAMAGE: Type={e.DamageType}, Amount={e.DamageAmount:F1}, GameDir={e.DirectionAngle:F1}°, DIDir={direction / 100:F1}°, Mag={magnitude}");
 
         var settings = e.DamageType switch
         {
-            (DamageType)0 => _configuration.Advanced.LaserDamage,
-            (DamageType)1 => _configuration.Advanced.BallisticDamage,
+            (DamageType)0 => _configuration.Advanced.LaserMGDamage,
+            (DamageType)1 => _configuration.Advanced.ProjectileDamage,
             (DamageType)2 => _configuration.Advanced.MissileDamage,
             (DamageType)3 => _configuration.Advanced.MeleeDamage,
-            _ => _configuration.Advanced.BallisticDamage
+            _ => _configuration.Advanced.ProjectileDamage
         };
 
         switch ((int)e.DamageType)
@@ -863,45 +917,57 @@ public class FFBEngine : IDisposable
                         bool isMGBurstContinuing = (now - _lastMachineGunDamageTime).TotalMilliseconds < MACHINE_GUN_DAMAGE_WINDOW_MS;
                         _lastMachineGunDamageTime = now;
 
-                        if (!isMGBurstContinuing && _activeMachineGunDamageEffectId >= 0)
+                        if (!isMGBurstContinuing)
                         {
-                            int captureId = _activeMachineGunDamageEffectId;
-                            _activeMachineGunDamageEffectId = -1;
-                            Log("Machine Gun Damage: Previous burst ended, creating new effect");
-                            EnqueueEffect(() =>
+                            // Previous burst ended - release its effect (if it has been created yet)
+                            int previousId = Interlocked.Exchange(ref _activeMachineGunDamageEffectId, -1);
+                            if (previousId >= 0 && previousId != EFFECT_PENDING)
                             {
-                                _hapticManager.StopEffect(captureId);
-                                _hapticManager.DestroyEffect(captureId);
-                            });
+                                if (_verbose) Log("Machine Gun Damage: Previous burst ended, creating new effect");
+                                EnqueueEffect(() =>
+                                {
+                                    _hapticManager.StopEffect(previousId);
+                                    _hapticManager.DestroyEffect(previousId);
+                                });
+                            }
                         }
 
-                        if (_activeMachineGunDamageEffectId < 0)
+                        // Claim the slot on the read thread (-1 → PENDING) - see EFFECT_PENDING.
+                        // Two hits arriving before the FFB thread runs no longer create two effects.
+                        if (Interlocked.CompareExchange(ref _activeMachineGunDamageEffectId, EFFECT_PENDING, -1) == -1)
                         {
-                            var mgDmg = _configuration.Advanced.LaserDamage;
+                            var mgDmg = _configuration.Advanced.LaserMGDamage;
                             int captureMag = magnitude;
                             EnqueueEffect(() =>
                             {
-                                int id = _hapticManager.CreatePeriodicEffect(captureMag, 200, mgDmg.Frequency, mgDmg.AttackTime, mgDmg.FadeTime);
-                                if (id >= 0)
-                                {
-                                    _activeMachineGunDamageEffectId = id;
-                                    _hapticManager.PlayEffect(id, 1);
-                                    Log($"Machine Gun Damage: NEW burst, Mag={captureMag}");
+                                if (_activeMachineGunDamageEffectId != EFFECT_PENDING)
+                                    return; // Slot released or already filled before we ran
 
-                                    Task.Delay(MACHINE_GUN_DAMAGE_WINDOW_MS + 100).ContinueWith(_ =>
-                                    {
-                                        if (_activeMachineGunDamageEffectId == id)
-                                        {
-                                            _hapticManager.DestroyEffect(id);
-                                            _activeMachineGunDamageEffectId = -1;
-                                        }
-                                    });
+                                int id = _hapticManager.CreatePeriodicEffect(captureMag, 200, mgDmg.Frequency, mgDmg.AttackTime, mgDmg.FadeTime);
+                                if (id < 0)
+                                {
+                                    Interlocked.CompareExchange(ref _activeMachineGunDamageEffectId, -1, EFFECT_PENDING); // allow retry
+                                    return;
                                 }
+                                if (Interlocked.CompareExchange(ref _activeMachineGunDamageEffectId, id, EFFECT_PENDING) != EFFECT_PENDING)
+                                {
+                                    _hapticManager.DestroyEffect(id);
+                                    return;
+                                }
+                                _hapticManager.PlayEffect(id, 1);
+                                if (_verbose) Log($"Machine Gun Damage: NEW burst, Mag={captureMag}");
+
+                                Task.Delay(MACHINE_GUN_DAMAGE_WINDOW_MS + 100).ContinueWith(_ => EnqueueEffect(() =>
+                                {
+                                    // Release only if this effect still owns the slot
+                                    if (Interlocked.CompareExchange(ref _activeMachineGunDamageEffectId, -1, id) == id)
+                                        _hapticManager.DestroyEffect(id);
+                                }));
                             });
                         }
                         else
                         {
-                            Log($"Machine Gun Damage: CONTINUING burst, Mag={magnitude}");
+                            if (_verbose) Log($"Machine Gun Damage: CONTINUING burst, Mag={magnitude}");
                         }
                         return;
                     }
@@ -945,7 +1011,7 @@ public class FFBEngine : IDisposable
                             _laserBeamEndTime = now.AddMilliseconds(beamDurMs);
                             int remainingMs = beamDurMs;
 
-                            var laserDmg = _configuration.Advanced.LaserDamage;
+                            var laserDmg = _configuration.Advanced.LaserMGDamage;
                             // Use quadratic formula on raw damage for consistency with other damage types
                             const double LASER_SLOPE = 5200.8;
                             const double LASER_POWER = 0.585;
@@ -954,7 +1020,7 @@ public class FFBEngine : IDisposable
                                 LASER_SLOPE * Math.Pow(e.DamageAmount, LASER_POWER),
                                 LASER_FLOOR);
                             int captureMag = Math.Clamp(
-                                (int)(laserRawMag * _configuration.Simple.LaserDamageIntensity * _configuration.MasterIntensity),
+                                (int)(laserRawMag * _configuration.Simple.LaserMGDamageIntensity * _configuration.MasterIntensity),
                                 0, 32767);
                             EnqueueEffect(() =>
                             {
@@ -963,7 +1029,7 @@ public class FFBEngine : IDisposable
                                 {
                                     _activeLaserDamageEffectId = id;
                                     _hapticManager.PlayEffect(id, 1);
-                                    Log($"Laser Damage: START beam, Mag={captureMag}, Dur={remainingMs}ms");
+                                    if (_verbose) Log($"Laser Damage: START beam, Mag={captureMag}, Dur={remainingMs}ms");
                                 }
                                 else
                                 {
@@ -998,7 +1064,7 @@ public class FFBEngine : IDisposable
                                         // immediately after. DirectInput stops a playing effect
                                         // automatically when it is disposed.
                                         _hapticManager.DestroyEffect(idToStop);
-                                        Log("Laser Damage: STOP beam");
+                                        if (_verbose) Log("Laser Damage: STOP beam");
                                     }
                                 });
                             }, null, remainingMs, Timeout.Infinite);
@@ -1011,7 +1077,7 @@ public class FFBEngine : IDisposable
                             // causing rapid successive ticks to continuously reset the motor to zero
                             // force, making the beam unfelt entirely. The magnitude variation between
                             // ticks (~18%) is not perceptible enough to justify this cost.
-                            Log($"Laser Damage: beam active, Mag={magnitude}");
+                            if (_verbose) Log($"Laser Damage: beam active, Mag={magnitude}");
                         }
                         return;
                     }
@@ -1026,9 +1092,9 @@ public class FFBEngine : IDisposable
                     // previously used but incorrectly boosted AC/10 hits too. Treat all
                     // projectile damage uniformly; PPCs are differentiated on the firing side.
                     int dirBucket = BucketDirection(direction);
-                    var ballisticDmg = _configuration.Advanced.BallisticDamage;
+                    var ballisticDmg = _configuration.Advanced.ProjectileDamage;
                     var key = new BatchKey(BatchKind.DamageImpact, SubType: 1, dirBucket);
-                    AccumulateBatch(key, magnitude, ballisticDmg.Duration, ballisticDmg.AttackTime, ballisticDmg.FadeTime, dirBucket, rawDamage: e.DamageAmount, damageTypeIntensity: _configuration.Simple.BallisticDamageIntensity * _configuration.MasterIntensity);
+                    AccumulateBatch(key, magnitude, ballisticDmg.Duration, ballisticDmg.AttackTime, ballisticDmg.FadeTime, dirBucket, rawDamage: e.DamageAmount, damageTypeIntensity: _configuration.Simple.ProjectileDamageIntensity * _configuration.MasterIntensity);
                     return;
                 }
 
@@ -1069,9 +1135,9 @@ public class FFBEngine : IDisposable
             return;
 
         _isLeftFoot = !_isLeftFoot;
-        int direction = _isLeftFoot ? 0 : 18000;
+        int direction = _isLeftFoot ? DIR_LEFT : DIR_RIGHT;
 
-        Log($"FOOTSTEP: {(_isLeftFoot ? "PUSH" : "PULL")}, Tonnage={e.MechTonnage}, Speed={e.Velocity:F1}");
+        if (_verbose) Log($"FOOTSTEP: {(_isLeftFoot ? "LEFT" : "RIGHT")}, Tonnage={e.MechTonnage}, Speed={e.Velocity:F1}");
 
         int magnitude = Math.Clamp((int)(32767 * _configuration.Simple.FootstepIntensity * _configuration.MasterIntensity), 0, 32767);
         var footstep = _configuration.Advanced.Footsteps;
@@ -1083,33 +1149,42 @@ public class FFBEngine : IDisposable
 
     private void HandleJumpJet(object? sender, JumpJetEvent e)
     {
-        Log($"JUMP JET: State={e.State}");
+        if (_verbose) Log($"JUMP JET: State={e.State}");
 
         // Jump jets are continuous singletons — never batched
         if (e.State == JumpJetState.Active)
         {
-            if (_activeJumpJetEffectId < 0)
+            // Claim the slot on the read thread (-1 → PENDING) - see EFFECT_PENDING
+            if (Interlocked.CompareExchange(ref _activeJumpJetEffectId, EFFECT_PENDING, -1) == -1)
             {
                 int magnitude = Math.Clamp((int)(32767 * _configuration.Simple.JumpJetIntensity * _configuration.MasterIntensity), 0, 32767);
                 var jumpJet = _configuration.Advanced.JumpJets;
                 int captureMag = magnitude;
                 EnqueueEffect(() =>
                 {
+                    if (_activeJumpJetEffectId != EFFECT_PENDING)
+                        return; // Jets cut before we got here - nothing to start
+
                     int id = _hapticManager.CreatePeriodicEffect(captureMag, 10000, jumpJet.Frequency, jumpJet.AttackTime, jumpJet.FadeTime);
-                    if (id >= 0)
+                    if (id < 0)
                     {
-                        _activeJumpJetEffectId = id;
-                        _hapticManager.PlayEffect(id, 1);
+                        Interlocked.CompareExchange(ref _activeJumpJetEffectId, -1, EFFECT_PENDING); // allow retry
+                        return;
                     }
+                    if (Interlocked.CompareExchange(ref _activeJumpJetEffectId, id, EFFECT_PENDING) != EFFECT_PENDING)
+                    {
+                        _hapticManager.DestroyEffect(id); // Jets cut while we were creating
+                        return;
+                    }
+                    _hapticManager.PlayEffect(id, 1);
                 });
             }
         }
         else
         {
-            if (_activeJumpJetEffectId >= 0)
+            int captureId = Interlocked.Exchange(ref _activeJumpJetEffectId, -1);
+            if (captureId >= 0 && captureId != EFFECT_PENDING) // PENDING: the queued create sees -1 and skips
             {
-                int captureId = _activeJumpJetEffectId;
-                _activeJumpJetEffectId = -1;
                 EnqueueEffect(() =>
                 {
                     _hapticManager.StopEffect(captureId);
@@ -1121,19 +1196,54 @@ public class FFBEngine : IDisposable
 
     private void HandleImpact(object? sender, ImpactEvent e)
     {
-        Log($"LANDING: Velocity={e.ImpactVelocity:F1}, Tonnage={e.MechTonnage}");
+        if (_verbose) Log($"LANDING: Velocity={e.ImpactVelocity:F1}, Tonnage={e.MechTonnage}");
 
         int magnitude = Math.Clamp((int)(32767 * _configuration.Simple.LandingIntensity * _configuration.MasterIntensity), 0, 32767);
         var landing = _configuration.Advanced.Landing;
 
+        // Landing pushes the stick away from the pilot - the opposite of weapon recoil
+        const int landingDirection = DIR_AWAY_FROM_PILOT;
+
         // Landing rarely fires multiple times in 10ms but AccumulateBatch handles it safely
-        var key = new BatchKey(BatchKind.WeaponImpact, SubType: 998, Direction: 0);
-        AccumulateBatch(key, magnitude, landing.Duration, landing.AttackTime, landing.FadeTime, 0);
+        var key = new BatchKey(BatchKind.WeaponImpact, SubType: 998, Direction: landingDirection);
+        AccumulateBatch(key, magnitude, landing.Duration, landing.AttackTime, landing.FadeTime, landingDirection);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// MG pulse timer tick (every 93ms while firing). Includes a safety stop: if no "firing"
+    /// event has arrived for MACHINE_GUN_STALE_MS (e.g. the mech was destroyed mid-burst, or the
+    /// game paused / lost focus before sending STOP), the buzz ends instead of running forever.
+    /// </summary>
+    private void MachineGunTick()
+    {
+        lock (_machineGunLock)
+        {
+            if (!_machineGunsActive)
+                return;
+
+            if ((DateTime.Now - _lastMachineGunActiveTime).TotalMilliseconds > MACHINE_GUN_STALE_MS)
+            {
+                StopMachineGunsLocked($"safety stop - no firing event for {MACHINE_GUN_STALE_MS / 1000}s");
+                return;
+            }
+
+            FireMachineGunPulse(_currentMachineGunMagnitude, _configuration.Advanced.MachineGuns);
+        }
+    }
+
+    /// <summary>Stop the MG pulse train. Caller must hold _machineGunLock.</summary>
+    private void StopMachineGunsLocked(string reason)
+    {
+        _machineGunsActive = false;
+        _machineGunTimer?.Dispose();
+        _machineGunTimer = null;
+        _currentMachineGunMagnitude = 0;
+        if (_verbose || reason != "STOP") Log($"Machine Gun: {reason}"); // safety stops always logged
+    }
 
     /// <summary>
     /// Machine gun pulses still fire individually — the timer owns the cadence.
@@ -1146,7 +1256,7 @@ public class FFBEngine : IDisposable
             if (effectId >= 0)
             {
                 _hapticManager.PlayEffect(effectId, 1);
-                Task.Delay(mg.Duration + 20).ContinueWith(_ => _hapticManager.DestroyEffect(effectId));
+                Task.Delay(mg.Duration + 20).ContinueWith(_ => EnqueueEffect(() => _hapticManager.DestroyEffect(effectId)));
             }
         });
     }
@@ -1224,7 +1334,8 @@ public class FFBEngine : IDisposable
 
             case WeaponClass.Missile:
                 baseMag = (e.Damage * 15) + 10000;
-                weaponIntensity = _configuration.Simple.MissileIntensity;
+                // Advanced "Rumble Intensity (%)" scales on top of the Simple missile slider
+                weaponIntensity = _configuration.Simple.MissileIntensity * _configuration.Advanced.Missiles.RumbleMultiplier;
                 break;
 
             case WeaponClass.Melee:
@@ -1242,34 +1353,9 @@ public class FFBEngine : IDisposable
         int magnitude = float.IsNaN(baseMag) ? 0 : (int)Math.Clamp(baseMag, 0f, 32767f);
 
         string weaponType = e.IsPPC ? "PPC" : e.WeaponClass.ToString();
-        Log($"Weapon: {weaponType}, RawDamage={e.Damage:F1}, Intensity={weaponIntensity:F2}, FinalMag={magnitude}");
+        if (_verbose) Log($"Weapon: {weaponType}, RawDamage={e.Damage:F1}, Intensity={weaponIntensity:F2}, FinalMag={magnitude}");
 
         return magnitude;
-    }
-
-    private int CalculateRecoilDuration(WeaponFireEvent e)
-    {
-        return e.WeaponClass switch
-        {
-            WeaponClass.Ballistic => _configuration.Advanced.Ballistics.Duration + _configuration.Advanced.Ballistics.FadeTime,
-            WeaponClass.Energy when e.IsPPC => _configuration.Advanced.PPCs.Duration + _configuration.Advanced.PPCs.FadeTime,
-            WeaponClass.Energy when e.IsMachineGun => _configuration.Advanced.MachineGuns.Duration + _configuration.Advanced.MachineGuns.FadeTime,
-            WeaponClass.Energy => (int)(e.BeamDuration * 1000) + _configuration.Advanced.Lasers.FadeTime,
-            WeaponClass.Missile => CalculateMissileDuration(e) + _configuration.Advanced.Missiles.FadeTime,
-            WeaponClass.Melee => _configuration.Advanced.Melee.Duration + _configuration.Advanced.Melee.FadeTime,
-            _ => 200
-        };
-    }
-
-    private int CalculateMissileDuration(WeaponFireEvent e)
-    {
-        if (e.FiringDelay > 0.01f)
-        {
-            int missileCount = (int)e.ProjectileMass;
-            float totalFiringTime = e.FiringDelay * (missileCount - 1);
-            return (int)(totalFiringTime * 1000);
-        }
-        return _configuration.Advanced.Missiles.Duration;
     }
 
     public void Dispose()

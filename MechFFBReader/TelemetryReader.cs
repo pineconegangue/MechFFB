@@ -12,7 +12,7 @@ namespace MechFFBReader;
 public class TelemetryReader : IDisposable
 {
     private readonly MemoryMappedFileHandler _mmfHandler;
-    private readonly CancellationTokenSource _cancellationSource;
+    private CancellationTokenSource _cancellationSource; // Recreated on each Start() - Stop() cancels it for good
     private Task? _readTask;
     private bool _isRunning;
 
@@ -29,8 +29,12 @@ public class TelemetryReader : IDisposable
     public DateTime? LastEventTime { get; private set; }
     public bool IsConnected => _mmfHandler.IsConnected;
 
+    /// <summary>Log every raw telemetry event (off by default - see FFBEngine.VerboseLogging).</summary>
+    public bool VerboseLogging { get => _verbose; set => _verbose = value; }
+    private volatile bool _verbose;
+
     // Async log queue — keeps Console.WriteLine off the MMF read thread
-    private readonly Channel<string> _logQueue = Channel.CreateUnbounded<string>(
+    private Channel<string> _logQueue = Channel.CreateUnbounded<string>( // Recreated on each Start() - Stop() completes it for good
         new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
     private Task? _logTask;
     private CancellationTokenSource? _logCts;
@@ -63,6 +67,14 @@ public class TelemetryReader : IDisposable
             return;
 
         _isRunning = true;
+
+        // Stop() permanently cancels the token and completes the log queue, so a restart
+        // needs fresh ones - otherwise the read loop would exit immediately.
+        _cancellationSource.Dispose();
+        _cancellationSource = new CancellationTokenSource();
+        _logQueue = Channel.CreateUnbounded<string>(
+            new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
+
         _logCts = new CancellationTokenSource();
         _logTask = Task.Factory.StartNew(
             () => LogLoop(_logCts.Token),
@@ -123,8 +135,8 @@ public class TelemetryReader : IDisposable
 
                     if (!connected)
                     {
-                        // Not connected — sleep 1s before retrying (no need for precision here)
-                        Thread.Sleep(1000);
+                        // Not connected — wait 1s before retrying, but wake immediately on Stop()
+                        token.WaitHandle.WaitOne(1000);
                         continue;
                     }
                 }
@@ -194,7 +206,7 @@ public class TelemetryReader : IDisposable
                 eventData.EventCode != EVENT_MASC &&
                 eventData.EventCode != EVENT_AMS)
             {
-                Log($"Event: Code={eventData.EventCode}, Int0={eventData.Int0}, " +
+                if (_verbose) Log($"Event: Code={eventData.EventCode}, Int0={eventData.Int0}, " +
                     $"F0={eventData.Float0:F2}, F1={eventData.Float1:F2}, F2={eventData.Float2:F2}, " +
                     $"F3={eventData.Float3:F2}, F4={eventData.Float4:F2}, F5={eventData.Float5:F2}");
             }
@@ -275,7 +287,7 @@ public class TelemetryReader : IDisposable
                     //   0° = Rear, 90° = Left, 180° = Front, 270° = Right
 
                     // Log all available data
-                    Log($"DAMAGE EVENT: Type={eventData.Int0}, Amt={eventData.Float0:F2}, " +
+                    if (_verbose) Log($"DAMAGE EVENT: Type={eventData.Int0}, Amt={eventData.Float0:F2}, " +
                         $"F1={eventData.Float1:F2}, F2={eventData.Float2:F2}, F3={eventData.Float3:F2}, " +
                         $"F4={eventData.Float4:F2}, F5={eventData.Float5:F2}");
 

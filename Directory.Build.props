@@ -1,0 +1,13 @@
+<Project>
+
+  <!-- Applies to every project in the solution.
+       Builds embed source/symbol paths into the DLLs (and stack traces). PathMap rewrites the
+       local checkout folder (e.g. D:\Selfmade\...) to "\MechFFB\", so released binaries don't
+       reveal where or by whom they were built. Deterministic makes identical sources produce
+       identical binaries. -->
+  <PropertyGroup>
+    <Deterministic>true</Deterministic>
+    <PathMap>$(MSBuildThisFileDirectory)=\MechFFB\</PathMap>
+  </PropertyGroup>
+
+</Project>

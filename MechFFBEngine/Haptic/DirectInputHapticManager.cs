@@ -1,5 +1,6 @@
 using SharpDX;
 using SharpDX.DirectInput;
+using MechFFBEngine.Configuration;
 
 namespace MechFFBEngine.Haptic;
 
@@ -25,16 +26,20 @@ public class DirectInputHapticManager : IDisposable
     public IntPtr WindowHandle { get; set; } = IntPtr.Zero;
 
     /// <summary>
-    /// Invert force direction (some devices have opposite axis conventions)
-    /// Set to true if impacts push the wrong way
+    /// How canonical force directions map onto this device's X/Y axes (flip/swap).
+    /// Applied in CreateImpactEffect - the only place a direction becomes device axes.
     /// </summary>
-    public bool InvertDirection { get; set; } = false;
+    public AxisMapping AxisMapping { get; set; } = new();
+
+    /// <summary>Number of force axes in use on the selected device (0 if none).</summary>
+    public int ForceAxisCount => _deviceAxes?.Length ?? 0;
 
     /// <summary>
-    /// Disable exclusive mode - use non-exclusive for all devices
-    /// Useful for devices like Sidewinder FFB2 that need hardware centering spring
+    /// Open the device in exclusive mode (requires WindowHandle). On by default: DirectInput only
+    /// lets most devices play force feedback when acquired exclusively. Turned off for devices
+    /// that need non-exclusive access (e.g. Sidewinder FFB2 hardware centering spring).
     /// </summary>
-    public bool DisableExclusiveMode { get; set; } = false;
+    public bool EnableExclusiveMode { get; set; } = true;
 
     public bool IsInitialized { get; private set; }
     public bool HasDeviceSelected => _joystick != null;
@@ -243,6 +248,7 @@ public class DirectInputHapticManager : IDisposable
         {
             // Release current device if any
             ReleaseDevice();
+            NeedsExclusiveMode = false;
 
             if (deviceIndex < 0 || deviceIndex >= _availableDevices.Count)
             {
@@ -264,31 +270,23 @@ public class DirectInputHapticManager : IDisposable
             // Create joystick device
             _joystick = new Joystick(_directInput, deviceInfo.InstanceGuid);
 
-            // Set cooperative level
-            // If DisableExclusiveMode is true, always use non-exclusive
-            // Otherwise, if WindowHandle is provided, use exclusive mode
+            // Set cooperative level: exclusive (the default) needs a window handle; before the window
+            // exists we open non-exclusive and MainWindow re-opens the device once it has a handle.
             try
             {
-                if (DisableExclusiveMode)
+                if (EnableExclusiveMode && WindowHandle != IntPtr.Zero)
                 {
-                    // Force non-exclusive mode (for devices like Sidewinder FFB2)
-                    _joystick.SetCooperativeLevel(IntPtr.Zero,
-                        CooperativeLevel.Background | CooperativeLevel.NonExclusive);
-                    Console.WriteLine("  Cooperative level: Background + NonExclusive (DisableExclusiveMode = true)");
-                }
-                else if (WindowHandle != IntPtr.Zero)
-                {
-                    // Application provided window handle - use exclusive mode for best FFB
                     _joystick.SetCooperativeLevel(WindowHandle,
                         CooperativeLevel.Background | CooperativeLevel.Exclusive);
-                    Console.WriteLine("  Cooperative level: Background + Exclusive (with window handle)");
+                    Console.WriteLine("  Cooperative level: Background + Exclusive");
                 }
                 else
                 {
-                    // No window handle - use non-exclusive mode
                     _joystick.SetCooperativeLevel(IntPtr.Zero,
                         CooperativeLevel.Background | CooperativeLevel.NonExclusive);
-                    Console.WriteLine("  Cooperative level: Background + NonExclusive");
+                    Console.WriteLine(EnableExclusiveMode
+                        ? "  Cooperative level: Background + NonExclusive (exclusive enabled, but no window handle yet)"
+                        : "  Cooperative level: Background + NonExclusive");
                 }
             }
             catch (Exception ex)
@@ -500,75 +498,9 @@ public class DirectInputHapticManager : IDisposable
         catch (Exception ex)
         {
             Console.WriteLine($"✗ Test failed: {ex.Message}");
+            WarnIfNeedsExclusive(ex);
             Console.WriteLine($"  Stack trace: {ex.StackTrace}");
             return false;
-        }
-    }
-
-    /// <summary>
-    /// Create a constant force effect with envelope
-    /// </summary>
-    public int CreateConstantEffect(int magnitude, int duration, int direction = 0)
-    {
-        if (_joystick == null || _deviceAxes == null || _deviceAxes.Length == 0)
-            return -1;
-
-        try
-        {
-            var parameters = new EffectParameters();
-            parameters.Duration = duration * 1000; // ms to microseconds
-            parameters.Flags = EffectFlags.Cartesian | EffectFlags.ObjectOffsets;
-            parameters.Gain = 10000;
-            parameters.SamplePeriod = 0;
-            parameters.StartDelay = 0;
-            parameters.TriggerButton = -1;
-            parameters.TriggerRepeatInterval = 0;
-
-            // Use device's actual axes
-            parameters.Axes = _deviceAxes;
-
-            // Direction conversion now handled in FFBEngine (clockwise/counter-clockwise)
-            // Just use the direction value directly
-
-            int[] directions = new int[_deviceAxes.Length];
-            if (_deviceAxes.Length == 1)
-            {
-                directions[0] = 10000;
-            }
-            else if (_deviceAxes.Length >= 2)
-            {
-                double angleRad = direction * Math.PI / 18000.0;
-                directions[0] = (int)(Math.Cos(angleRad) * 10000);
-                directions[1] = (int)(Math.Sin(angleRad) * 10000);
-                for (int i = 2; i < _deviceAxes.Length; i++)
-                    directions[i] = 0;
-            }
-            parameters.Directions = directions;
-
-            // Envelope
-            var envelope = new Envelope();
-            envelope.AttackLevel = 0;
-            envelope.AttackTime = 0;
-            envelope.FadeLevel = 0;
-            envelope.FadeTime = (duration / 4) * 1000; // microseconds
-            parameters.Envelope = envelope;
-
-            // Constant force
-            var constantForce = new ConstantForce();
-            constantForce.Magnitude = (int)((magnitude / 32767.0) * 10000);
-            parameters.Parameters = constantForce;
-
-            var effect = new Effect(_joystick, DirectInputFFB.GUID_ConstantForce, parameters);
-
-            int effectId = _nextEffectId++;
-            _activeEffects[effectId] = effect;
-
-            return effectId;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"✗ Failed to create constant effect: {ex.Message}");
-            return -1;
         }
     }
 
@@ -633,7 +565,7 @@ public class DirectInputHapticManager : IDisposable
     /// <summary>
     /// Create a constant effect with custom envelope - good for impacts!
     /// </summary>
-    public int CreateImpactEffect(int magnitude, int duration, int attackMs = 20, int fadeMs = 150, int direction = 0)
+    public int CreateImpactEffect(int magnitude, int duration, int attackMs = 20, int fadeMs = 150, int direction = 0, bool applyMapping = true)
     {
         if (_joystick == null || _deviceAxes == null || _deviceAxes.Length == 0)
             return -1;
@@ -652,9 +584,8 @@ public class DirectInputHapticManager : IDisposable
             // Use device's actual axes
             parameters.Axes = _deviceAxes;
 
-            // Direction conversion now handled in FFBEngine (clockwise/counter-clockwise)
-            // Just use the direction value directly
-
+            // The engine gives a canonical direction; the device's AxisMapping turns it into
+            // this device's X/Y (calibration pushes skip the mapping).
             int[] directions = new int[_deviceAxes.Length];
             if (_deviceAxes.Length == 1)
             {
@@ -663,8 +594,11 @@ public class DirectInputHapticManager : IDisposable
             else if (_deviceAxes.Length >= 2)
             {
                 double angleRad = direction * Math.PI / 18000.0;
-                directions[0] = (int)(Math.Cos(angleRad) * 10000);
-                directions[1] = (int)(Math.Sin(angleRad) * 10000);
+                var (x, y) = applyMapping
+                    ? AxisMapping.Apply(Math.Cos(angleRad), Math.Sin(angleRad))
+                    : (Math.Cos(angleRad), Math.Sin(angleRad));
+                directions[0] = (int)Math.Round(x * 10000);
+                directions[1] = (int)Math.Round(y * 10000);
                 for (int i = 2; i < _deviceAxes.Length; i++)
                     directions[i] = 0;
             }
@@ -695,6 +629,23 @@ public class DirectInputHapticManager : IDisposable
             Console.WriteLine($"✗ Failed to create impact effect: {ex.Message}");
             return -1;
         }
+    }
+
+    /// <summary>
+    /// Calibration: play a ~0.5 s push along a canonical direction WITHOUT the axis mapping, so
+    /// the user can report which way the stick physically moved. Blocks for the push - call off
+    /// the UI thread, and only while the FFB engine is stopped.
+    /// </summary>
+    public bool PlayRawPush(int canonicalDirection)
+    {
+        int id = CreateImpactEffect(20000, 500, 10, 100, canonicalDirection, applyMapping: false);
+        if (id < 0)
+            return false;
+        bool played = PlayEffect(id, 1);
+        if (played)
+            Thread.Sleep(650);
+        DestroyEffect(id);
+        return played; // false if the device refused to play it (e.g. needs exclusive mode)
     }
 
     /// <summary>
@@ -736,7 +687,25 @@ public class DirectInputHapticManager : IDisposable
         catch (Exception ex)
         {
             Console.WriteLine($"✗ Failed to play effect {effectId}: {ex.Message}");
+            WarnIfNeedsExclusive(ex);
             return false;
+        }
+    }
+
+    /// <summary>True once a play attempt failed because the device isn't opened in exclusive mode.</summary>
+    public bool NeedsExclusiveMode { get; private set; }
+
+    /// <summary>
+    /// DirectInput only lets most devices play force feedback when opened in exclusive mode.
+    /// Turn the cryptic NotExclusiveAcquired error into an actionable hint (logged once per device).
+    /// </summary>
+    private void WarnIfNeedsExclusive(Exception ex)
+    {
+        const int DIERR_NOTEXCLUSIVEACQUIRED = unchecked((int)0x80040205);
+        if (ex is SharpDXException sdx && sdx.ResultCode.Code == DIERR_NOTEXCLUSIVEACQUIRED && !NeedsExclusiveMode)
+        {
+            NeedsExclusiveMode = true;
+            Console.WriteLine("⚠ This device only plays force feedback in exclusive mode - tick 'Enable Exclusive Mode'.");
         }
     }
 
@@ -755,61 +724,6 @@ public class DirectInputHapticManager : IDisposable
             {
                 Console.WriteLine($"✗ Failed to stop effect {effectId}: {ex.Message}");
             }
-        }
-    }
-
-    /// <summary>
-    /// Update the magnitude of an existing periodic effect in-place via SetParameters.
-    /// Used to keep a long-running laser damage effect at the correct intensity as
-    /// damage ticks arrive with varying amounts throughout the beam duration.
-    /// </summary>
-    public void UpdateEffectMagnitude(int effectId, int magnitude, int attackMs, int fadeMs)
-    {
-        if (!_activeEffects.TryGetValue(effectId, out var effect))
-            return;
-
-        try
-        {
-            var parameters = new EffectParameters();
-            parameters.Flags = EffectFlags.Cartesian | EffectFlags.ObjectOffsets;
-
-            var envelope = new Envelope();
-            envelope.AttackLevel = (int)((magnitude / 32767.0 / 2.0) * 10000);
-            envelope.AttackTime = attackMs * 1000;
-            envelope.FadeLevel = 0;
-            envelope.FadeTime = fadeMs * 1000;
-            parameters.Envelope = envelope;
-
-            var periodic = new PeriodicForce();
-            periodic.Magnitude = (int)((magnitude / 32767.0) * 10000);
-            periodic.Offset = 0;
-            periodic.Phase = 0;
-            periodic.Period = 0; // 0 = keep existing period unchanged
-            parameters.Parameters = periodic;
-
-            effect.SetParameters(parameters,
-                EffectParameterFlags.TypeSpecificParameters | EffectParameterFlags.Envelope);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"✗ Failed to update effect magnitude {effectId}: {ex.Message}");
-        }
-    }
-
-    /// <summary>
-    /// Ensure the device's force feedback output is active.
-    /// Some drivers pause FF output after effect.Stop() — calling Continue() before
-    /// starting the next effect guarantees the device is in an output-enabled state.
-    /// </summary>
-    public void ContinueDevice()
-    {
-        try
-        {
-            _joystick?.SendForceFeedbackCommand(ForceFeedbackCommand.Continue);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"✗ Failed to continue device: {ex.Message}");
         }
     }
 
@@ -836,18 +750,18 @@ public class DirectInputHapticManager : IDisposable
     }
 
     /// <summary>
-    /// Stop all effects
+    /// Dispose every effect currently held and clear the table. Dispose-only (no Stop):
+    /// DirectInput unloads a playing effect when it is released. Call only from the FFB
+    /// thread, or after it has stopped.
     /// </summary>
-    public void StopAllEffects()
+    public void DestroyAllEffects()
     {
         foreach (var effect in _activeEffects.Values)
         {
-            try
-            {
-                effect.Stop();
-            }
+            try { effect.Dispose(); }
             catch { }
         }
+        _activeEffects.Clear();
     }
 
     private void ReleaseDevice()

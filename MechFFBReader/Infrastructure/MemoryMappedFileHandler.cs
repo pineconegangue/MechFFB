@@ -20,6 +20,7 @@ public class MemoryMappedFileHandler : IDisposable
     private bool _isConnected;
     private long _lastPacketNumber = -1;
     private long _lastWriteIndex = 0;
+    private bool _loggedWaiting; // Log "waiting for MMF" once per disconnected period, not every retry
     
     // Control block structure (matches C++ ControlBlock and C# ControlBlock)
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -48,35 +49,37 @@ public class MemoryMappedFileHandler : IDisposable
     /// </summary>
     public bool Connect()
     {
+        // Release anything left over from a previous session (e.g. after the game's closing
+        // signal) and start packet tracking from scratch.
+        Disconnect();
+
         try
         {
-            Console.WriteLine($"Attempting to connect to MMF: {MMF_NAME}");
-            Console.WriteLine($"Expected size: {TOTAL_SIZE} bytes");
-            
             // Try to open existing MMF (read-only)
             _mmf = MemoryMappedFile.OpenExisting(MMF_NAME, MemoryMappedFileRights.Read);
-            Console.WriteLine("MMF opened successfully");
-            
             _accessor = _mmf.CreateViewAccessor(0, TOTAL_SIZE, MemoryMappedFileAccess.Read);
-            Console.WriteLine("Accessor created successfully");
             
             _isConnected = true;
-            Console.WriteLine($"✓ Connected to MechShakerBridge MMF");
+            _loggedWaiting = false;
+            Console.WriteLine($"✓ Connected to MechShakerBridge MMF ({MMF_NAME}, {TOTAL_SIZE} bytes)");
             return true;
         }
-        catch (FileNotFoundException ex)
+        catch (FileNotFoundException)
         {
-            // MMF doesn't exist - MW5 not running or MechShakerBridge not loaded
-            Console.WriteLine($"MMF not found: {ex.Message}");
-            Console.WriteLine("Make sure MW5 is running with MechShakerBridge mod loaded");
-            _isConnected = false;
+            // MMF doesn't exist - MW5 not running or MechShakerBridge not loaded.
+            // The reader retries every second, so only say so once.
+            if (!_loggedWaiting)
+            {
+                Console.WriteLine("Waiting for MW5 - make sure it is running with the MechShakerBridge mod loaded");
+                _loggedWaiting = true;
+            }
+            Disconnect();
             return false;
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error connecting to MMF: {ex.GetType().Name}: {ex.Message}");
-            Console.WriteLine($"Stack trace: {ex.StackTrace}");
-            _isConnected = false;
+            Disconnect();
             return false;
         }
     }
@@ -96,30 +99,45 @@ public class MemoryMappedFileHandler : IDisposable
         
         try
         {
-            // Read control block
-            ControlBlock controlBlockBefore = new ControlBlock 
-            { 
-                WriteIndex = _lastWriteIndex, 
-                PacketNumber = _lastPacketNumber 
-            };
-            
             ControlBlock controlBlock;
             _accessor.Read(0, out controlBlock);
             
-            // Debug: Print control block on first read
+            // First read of a session: just record the current position
             if (_lastPacketNumber == -1)
             {
-                Console.WriteLine($"First control block read:");
-                Console.WriteLine($"  WriteIndex: {controlBlock.WriteIndex}");
-                Console.WriteLine($"  PacketNumber: {controlBlock.PacketNumber}");
+                Console.WriteLine($"First control block read: WriteIndex={controlBlock.WriteIndex}, PacketNumber={controlBlock.PacketNumber}");
                 _lastWriteIndex = controlBlock.WriteIndex;
                 _lastPacketNumber = controlBlock.PacketNumber;
-                return events; // Skip first read, just initialize
+                return events;
+            }
+
+            long newPackets = controlBlock.PacketNumber - _lastPacketNumber;
+
+            // Counter went backwards: the bridge restarted (new game session) while we were
+            // still attached. Re-sync to the new session instead of waiting for the new counter
+            // to catch up with the old one.
+            if (newPackets < 0)
+            {
+                Console.WriteLine("MechShakerBridge packet counter reset (new game session) - re-syncing");
+                _lastWriteIndex = controlBlock.WriteIndex;
+                _lastPacketNumber = controlBlock.PacketNumber;
+                return events;
+            }
+
+            // More events arrived than the ring buffer holds, so the oldest unread entries have
+            // already been overwritten. Drop the backlog rather than replaying stale events.
+            if (newPackets > BUFFER_SIZE)
+            {
+                Console.WriteLine($"MMF overrun: {newPackets} events since last read (buffer holds {BUFFER_SIZE}) - skipping backlog");
+                _lastWriteIndex = controlBlock.WriteIndex;
+                _lastPacketNumber = controlBlock.PacketNumber;
+                return events;
             }
             
             // Read all events between last packet and current packet
-            long readIndex = controlBlockBefore.WriteIndex;
-            for (long packetNumber = controlBlockBefore.PacketNumber; packetNumber < controlBlock.PacketNumber; packetNumber++)
+            bool closing = false;
+            long readIndex = _lastWriteIndex;
+            for (long packetNumber = _lastPacketNumber; packetNumber < controlBlock.PacketNumber; packetNumber++)
             {
                 long offset = CONTROL_BLOCK_SIZE + (EVENT_DATA_SIZE * readIndex);
                 
@@ -132,11 +150,19 @@ public class MemoryMappedFileHandler : IDisposable
                 if (eventData.EventCode == -1)
                 {
                     Console.WriteLine("MechShakerBridge closing signal received");
-                    _isConnected = false;
+                    closing = true;
                     break;
                 }
                 
                 events.Add(eventData);
+            }
+
+            if (closing)
+            {
+                // Release our handle so the old mapping can go away with the game, and forget
+                // this session's position so the next session starts clean.
+                Disconnect();
+                return events;
             }
             
             // Update last read position
@@ -148,7 +174,7 @@ public class MemoryMappedFileHandler : IDisposable
         catch (Exception ex)
         {
             Console.WriteLine($"Error reading from MMF: {ex.Message}");
-            _isConnected = false;
+            Disconnect();
             return events;
         }
     }
@@ -162,6 +188,11 @@ public class MemoryMappedFileHandler : IDisposable
         _mmf = null;
         
         _isConnected = false;
+
+        // Forget the previous session's position. A new game session restarts the bridge's
+        // packet counter, so stale values here would make every new event look already read.
+        _lastPacketNumber = -1;
+        _lastWriteIndex = 0;
     }
     
     public void Dispose()
